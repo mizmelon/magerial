@@ -9,6 +9,11 @@ interface GuideModalProps {
 export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
   if (!isOpen) return null;
 
+  const base = (import.meta as any).env?.BASE_URL || '/';
+  const cleanBase = base.endsWith('/') ? base : base + '/';
+  const typeGifUrl = `${cleanBase}assets/type.gif`;
+  const dragDropGifUrl = `${cleanBase}assets/drag_drop.gif`;
+
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="guide_modal_backdrop">
       
@@ -72,7 +77,7 @@ export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
               {/* GIF配置エリア */}
               <div className="mt-3 flex-1 min-h-0 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden relative group">
                 <img 
-                  src="/assets/type.gif" 
+                  src={typeGifUrl} 
                   alt="タイピングで生成のデモ"
                   className="max-w-full max-h-full object-contain pointer-events-none"
                   referrerPolicy="no-referrer"
@@ -106,7 +111,7 @@ export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
                 {/* GIF配置エリア */}
                 <div className="mt-3 flex-1 min-h-0 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden relative group">
                   <img 
-                    src="/assets/drag_drop.gif" 
+                    src={dragDropGifUrl} 
                     alt="ドラッグ＆ドロップ合成のデモ"
                     className="max-w-full max-h-full object-contain pointer-events-none"
                     referrerPolicy="no-referrer"
