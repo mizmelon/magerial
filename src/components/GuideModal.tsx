@@ -9,10 +9,8 @@ interface GuideModalProps {
 export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
   if (!isOpen) return null;
 
-  const base = (import.meta as any).env?.BASE_URL || '/';
-  const cleanBase = base.endsWith('/') ? base : base + '/';
-  const typeGifUrl = `${cleanBase}assets/type.gif`;
-  const dragDropGifUrl = `${cleanBase}assets/drag_drop.gif`;
+  const typeGifUrl = new URL('../assets/images/type.gif', import.meta.url).href;
+  const dragDropGifUrl = new URL('../assets/images/drag_drop.gif', import.meta.url).href;
 
   return (
     <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in" id="guide_modal_backdrop">
