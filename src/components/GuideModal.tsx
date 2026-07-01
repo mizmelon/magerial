@@ -1,5 +1,9 @@
 import React from 'react';
 import { X, Sparkles, Keyboard, MousePointer } from 'lucide-react';
+// @ts-ignore
+import typeGif from '../assets/type.gif';
+// @ts-ignore
+import dragGif from '../assets/drag.gif';
 
 interface GuideModalProps {
   isOpen: boolean;
@@ -72,7 +76,7 @@ export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
               {/* GIF配置エリア */}
               <div className="mt-3 flex-1 min-h-0 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden relative group">
                 <img 
-                  src="/assets/type.gif" 
+                  src={typeGif} 
                   alt="タイピングで生成のデモ"
                   className="max-w-full max-h-full object-contain pointer-events-none"
                   referrerPolicy="no-referrer"
@@ -106,7 +110,7 @@ export default function GuideModal({ isOpen, onClose }: GuideModalProps) {
                 {/* GIF配置エリア */}
                 <div className="mt-3 flex-1 min-h-0 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-center overflow-hidden relative group">
                   <img 
-                    src="/assets/drag.gif" 
+                    src={dragGif} 
                     alt="ドラッグ＆ドロップ合成のデモ"
                     className="max-w-full max-h-full object-contain pointer-events-none"
                     referrerPolicy="no-referrer"
