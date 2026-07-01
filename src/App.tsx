@@ -5,7 +5,9 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { SUBSTANCES, REACTIONS, getReaction } from './data/substances';
+import { ACHIEVEMENTS, Achievement } from './data/achievements';
 import { Substance, Reaction } from './types';
+import GuideModal from './components/GuideModal';
 import { 
   Atom, 
   Flame, 
@@ -37,6 +39,177 @@ interface GridCell {
   age: number;
 }
 
+// Beautiful inline SVG/CSS illustrations for achievements
+function AchievementIllustration({ type, unlocked }: { type: string; unlocked: boolean }) {
+  if (!unlocked) {
+    return (
+      <div className="w-20 h-20 rounded-xl bg-slate-100 border border-slate-200 flex flex-col items-center justify-center text-slate-400 font-mono text-xs select-none gap-1 shrink-0">
+        <span className="text-xl">🔒</span>
+        <span className="text-[9px] text-slate-400 uppercase tracking-widest font-bold">LOCKED</span>
+      </div>
+    );
+  }
+
+  // Define interactive SVG nodes for active achievements
+  switch (type) {
+    case 'universe':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-tr from-indigo-950 via-slate-900 to-purple-950 border border-purple-500/40 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute w-14 h-14 rounded-full border border-purple-500/20 animate-spin-slow"></div>
+          <div className="absolute w-10 h-10 rounded-full border border-indigo-400/30 animate-spin-reverse"></div>
+          <div className="absolute w-6 h-6 rounded-full bg-indigo-500/25 blur-md"></div>
+          <div className="w-3 h-3 rounded-full bg-purple-300 animate-pulse relative z-10"></div>
+          <span className="absolute text-xl">🌌</span>
+        </div>
+      );
+    case 'star':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-tr from-amber-950 via-slate-900 to-orange-950 border border-amber-500/40 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute w-12 h-12 rounded-full bg-amber-500/10 blur-md animate-pulse"></div>
+          <div className="absolute w-8 h-8 rounded-full bg-amber-400/30 blur-sm"></div>
+          <div className="w-6 h-6 rounded-full bg-amber-400 border border-white/50 flex items-center justify-center shadow-inner relative z-10">
+            <span className="text-xs text-amber-950 font-bold">🔥</span>
+          </div>
+          <span className="absolute text-xs text-yellow-200 font-bold font-mono top-1 animate-bounce">⭐</span>
+        </div>
+      );
+    case 'planet':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-tr from-sky-950 via-slate-900 to-emerald-950 border border-sky-500/30 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute w-14 h-14 rounded-full border border-sky-500/15 flex items-center justify-center">
+            <div className="w-16 h-0.5 bg-sky-300/30 rotate-12"></div>
+          </div>
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-cyan-400 to-emerald-500 border border-cyan-200 relative z-10 shadow-md"></div>
+          <span className="absolute text-xs bottom-2 z-20">🪐</span>
+        </div>
+      );
+    case 'blackhole':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-black border border-purple-900 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute inset-2 rounded-full border-2 border-dashed border-purple-500/30 animate-spin-slow"></div>
+          <div className="absolute w-12 h-12 rounded-full bg-purple-500/15 blur-sm"></div>
+          <div className="w-6 h-6 rounded-full bg-black border-2 border-purple-500 shadow-2xl relative z-10 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-white animate-ping"></div>
+          </div>
+        </div>
+      );
+    case 'electrolysis':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-blue-50 border border-blue-200 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute bottom-2 left-4 w-2 h-12 bg-slate-300 rounded shadow-sm"></div>
+          <div className="absolute bottom-2 right-4 w-2 h-12 bg-slate-400 rounded shadow-sm"></div>
+          {/* Bubbles ascending */}
+          <div className="absolute bottom-6 left-4 w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+          <div className="absolute bottom-10 left-4 w-2 h-2 bg-blue-400 rounded-full animate-ping"></div>
+          <div className="absolute bottom-8 right-4 w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"></div>
+          <div className="absolute bottom-4 right-4 w-2 h-2 bg-blue-300 rounded-full animate-ping"></div>
+          <span className="text-2xl relative z-10">💧</span>
+        </div>
+      );
+    case 'primordial':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-tr from-teal-950 via-slate-900 to-emerald-950 border border-emerald-500/30 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute inset-0 flex items-center justify-center opacity-20">
+            <div className="w-12 h-12 border-2 border-emerald-400 rounded-full animate-ping"></div>
+          </div>
+          <div className="text-3xl animate-pulse relative z-10">🌱</div>
+        </div>
+      );
+    case 'chips':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-900 border border-emerald-500/40 flex flex-col items-center justify-center relative overflow-hidden p-2 shadow-md shrink-0">
+          <div className="w-10 h-10 bg-slate-800 border-2 border-emerald-400 rounded flex items-center justify-center text-xs font-bold text-emerald-300 relative z-10 shadow-md">
+            Si
+          </div>
+          {/* Circuit trace lines */}
+          <div className="absolute w-full h-0.5 bg-emerald-500/25 top-4"></div>
+          <div className="absolute w-full h-0.5 bg-emerald-500/25 bottom-4"></div>
+          <div className="absolute w-0.5 h-full bg-emerald-500/25 left-4"></div>
+          <div className="absolute w-0.5 h-full bg-emerald-500/25 right-4"></div>
+        </div>
+      );
+    case 'lava':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-b from-orange-600 via-red-950 to-slate-950 border border-orange-500/35 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute top-2 left-4 w-3 h-10 bg-amber-400/40 rounded-full blur-xs animate-pulse"></div>
+          <div className="absolute top-6 right-3 w-4 h-12 bg-orange-500/60 rounded-full blur-xs"></div>
+          <span className="text-2xl relative z-10">🌋</span>
+        </div>
+      );
+    case 'metal':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute w-14 h-4 bg-slate-400 rotate-45 rounded"></div>
+          <div className="absolute w-10 h-10 bg-slate-300 border border-slate-400 rounded-lg shadow-sm"></div>
+          <span className="text-2xl relative z-10">🛠️</span>
+        </div>
+      );
+    case 'ferment':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-gradient-to-t from-yellow-500/20 via-slate-900 to-amber-950/20 border border-yellow-300/30 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute bottom-3 w-10 h-5 bg-yellow-400/30 rounded-full blur-sm animate-pulse"></div>
+          <div className="absolute top-4 left-4 w-2 h-2 bg-yellow-300 rounded-full animate-bounce"></div>
+          <div className="absolute top-8 right-4 w-2.5 h-2.5 bg-yellow-400 rounded-full animate-ping"></div>
+          <span className="text-2xl relative z-10">🍺</span>
+        </div>
+      );
+    case 'plastic':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute w-12 h-12 border border-dashed border-indigo-300 rounded-full rotate-45 flex items-center justify-center">
+            <div className="w-10 h-10 border border-indigo-400/40 rounded-lg"></div>
+          </div>
+          <span className="text-2xl relative z-10">📦</span>
+        </div>
+      );
+    case 'ai':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-950 border border-purple-500/40 flex items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute inset-1.5 border border-purple-500/20 rounded-lg animate-pulse"></div>
+          <div className="w-8 h-8 rounded-full bg-purple-500/15 flex items-center justify-center">
+            <div className="w-3 h-3 bg-purple-400 rounded-full animate-ping"></div>
+          </div>
+          <span className="absolute text-2xl">🧠</span>
+        </div>
+      );
+    case 'ufo':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-950 border border-cyan-500/30 flex flex-col items-center justify-center relative overflow-hidden shadow-md shrink-0">
+          <div className="absolute bottom-0 w-12 h-14 bg-cyan-400/15 blur-sm clip-path-beam"></div>
+          <span className="text-2xl relative z-10 animate-bounce">🛸</span>
+        </div>
+      );
+    case 'dynamite':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute top-2 right-4 w-1.5 h-4 bg-slate-400 rounded"></div>
+          <div className="absolute top-0 right-2 w-3 h-3 bg-yellow-400 rounded-full animate-ping"></div>
+          <span className="text-2xl relative z-10">🧨</span>
+        </div>
+      );
+    case 'glass':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-cyan-50/40 border border-cyan-200 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute inset-4 border border-cyan-300 rounded-full animate-pulse"></div>
+          <span className="text-2xl relative z-10">🔍</span>
+        </div>
+      );
+    case 'source':
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center relative overflow-hidden shadow-inner shrink-0">
+          <div className="absolute inset-2 border border-dashed border-slate-300 rounded-full animate-spin-slow"></div>
+          <span className="text-2xl relative z-10">💠</span>
+        </div>
+      );
+    default:
+      return (
+        <div className="w-20 h-20 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-center text-2xl shrink-0">
+          💡
+        </div>
+      );
+  }
+}
+
 export default function App() {
   // --- STATE ---
   const [grid, setGrid] = useState<GridCell[][]>(() => createInitialGrid());
@@ -45,7 +218,8 @@ export default function App() {
   const [typingInput, setTypingInput] = useState('');
   const [hoveredCell, setHoveredCell] = useState<{ x: number; y: number } | null>(null);
   const [selectedSubstanceId, setSelectedSubstanceId] = useState<string>('water');
-  const [activeTab, setActiveTab] = useState<'inspector' | 'encyclopedia' | 'reactions' | 'oracle'>('inspector');
+  const [activeTab, setActiveTab] = useState<'inspector' | 'encyclopedia' | 'reactions' | 'achievements'>('inspector');
+  const [showGuide, setShowGuide] = useState(true);
   
   // Drag and drop states
   const [draggedCell, setDraggedCell] = useState<{ x: number; y: number; type: string } | null>(null);
@@ -80,10 +254,11 @@ export default function App() {
   const [bigBangActive, setBigBangActive] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // Oracle state (AI assistant)
-  const [oracleQuestion, setOracleQuestion] = useState('');
-  const [oracleAnswer, setOracleAnswer] = useState<string>('「何が知りたい、大いなる創造主よ？ 物質の合成法やスペル、あるいは宇宙の真理について、私に尋ねるがよい。」');
-  const [isOracleLoading, setIsOracleLoading] = useState(false);
+  // Achievements States
+  const [hoveredAchievement, setHoveredAchievement] = useState<Achievement | null>(null);
+  const [panOffset, setPanOffset] = useState({ x: -200, y: 10 }); // Center level 0 universe node slightly
+  const [isDraggingPan, setIsDraggingPan] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
   // Auto-complete index
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
@@ -127,6 +302,16 @@ export default function App() {
     return getSubstanceNameJa(s);
   };
 
+  const getSubstanceNameEn = (sub: typeof SUBSTANCES[0] | undefined) => {
+    if (!sub) return '???';
+    return unlockedIds.includes(sub.id) ? sub.nameEn : '???';
+  };
+
+  const getSubstanceNameEnById = (id: string) => {
+    const s = SUBSTANCES.find(sub => sub.id === id);
+    return getSubstanceNameEn(s);
+  };
+
   // Handle Big Bang Victory
   useEffect(() => {
     if (discoveredIds.includes('universe') && !bigBangActive) {
@@ -160,7 +345,7 @@ export default function App() {
             const s = SUBSTANCES.find(sub => sub.id === id);
             if (s) {
               showNotification(
-                `🧪 新物質を発見: ${s.nameEn} (${s.nameJa})`,
+                `🧪 新物質を発見: ${s.nameEn}`,
                 `すべての用途を試すとタイピングアンロックされます！`,
                 'success'
               );
@@ -181,7 +366,7 @@ export default function App() {
           const allDone = relevant.every(r => alreadyTried.includes(r.id));
           if (allDone) {
             showNotification(
-              `🎉 タイピング解放: ${rSub.nameEn} (${rSub.nameJa})`,
+              `🎉 タイピング解放: ${rSub.nameEn}`,
               `スペルをタイプしていつでも落下させられるようになりました！`,
               'success'
             );
@@ -868,54 +1053,6 @@ export default function App() {
     setTypingInput('');
   };
 
-  // --- ASK AI ORACLE ---
-  const handleAskOracle = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!oracleQuestion.trim()) return;
-
-    setIsOracleLoading(true);
-    setOracleAnswer("大いなる神の思考をチャネリング中（Oracleが思索しています）...");
-
-    try {
-      const discoveredList = discoveredIds.map(id => {
-        const s = SUBSTANCES.find(sub => sub.id === id);
-        return s ? `${s.nameEn}(${getSubstanceNameJa(s)})` : id;
-      });
-
-      const triedReactionsList = triedReactionIds.map(id => {
-        const r = REACTIONS.find(rx => rx.id === id);
-        if (!r) return id;
-        const ra = getSubstanceNameJaById(r.a);
-        const rb = getSubstanceNameJaById(r.b);
-        const rp = r.products.map(p => getSubstanceNameJaById(p)).join('と');
-        return `${ra} + ${rb} ➔ ${rp}`;
-      });
-
-      const response = await fetch('/api/oracle', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          question: oracleQuestion,
-          discoveredList,
-          triedReactionsList
-        })
-      });
-
-      const data = await response.json();
-      if (data.answer) {
-        setOracleAnswer(data.answer);
-      } else {
-        setOracleAnswer("申し訳ありません、神々の知恵へのアクセスに失敗しました。接続エラーが発生したようです。");
-      }
-    } catch (err) {
-      console.error(err);
-      setOracleAnswer("Oracleへのチャネリングが途切れました。しばらく時間をおいて再度お試しください。");
-    } finally {
-      setIsOracleLoading(false);
-      setOracleQuestion('');
-    }
-  };
-
   // --- EXTRA UTILITIES ---
   const clearCanvas = () => {
     setGrid(Array.from({ length: ROWS }, () =>
@@ -1003,9 +1140,14 @@ export default function App() {
       {/* HEADER SECTION */}
       <header className="h-16 border-b border-slate-200 bg-white px-6 flex items-center justify-between shrink-0 relative z-10 shadow-sm" id="game_header">
         <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 bg-yellow-100 border border-yellow-400 flex items-center justify-center rounded animate-pulse">
-            <span className="text-yellow-700 font-bold text-xl">Σ</span>
-          </div>
+          <button 
+            onClick={() => setShowGuide(true)}
+            className="w-10 h-10 bg-yellow-100 hover:bg-yellow-200 active:scale-95 transition-all border border-yellow-400 flex items-center justify-center rounded cursor-pointer group shadow-sm"
+            title="操作方法ガイドを開く"
+            id="sigma_guide_btn"
+          >
+            <span className="text-yellow-700 font-bold text-xl group-hover:scale-110 transition-transform">Σ</span>
+          </button>
           <div>
             <h1 className="text-xs uppercase tracking-widest text-slate-900 font-bold font-mono">
               Cosmos Synthesis Engine
@@ -1148,8 +1290,8 @@ export default function App() {
                     <span className="text-yellow-400 font-bold">選択セル (Active): X:{selectedCell.x} Y:{selectedCell.y}</span>
                     <span className="text-slate-300">
                       ({grid[selectedCell.y]?.[selectedCell.x]?.type === 'empty' 
-                        ? '空相/Empty' 
-                        : getSubstanceNameJaById(grid[selectedCell.y]?.[selectedCell.x]?.type)})
+                        ? 'Empty' 
+                        : getSubstanceNameEnById(grid[selectedCell.y]?.[selectedCell.x]?.type)})
                     </span>
                   </div>
                 ) : (
@@ -1161,8 +1303,8 @@ export default function App() {
                   <div className="text-slate-400 text-[9px]">
                     ホバー (Hover): X:{hoveredCell.x} Y:{hoveredCell.y} 
                     ({grid[hoveredCell.y]?.[hoveredCell.x]?.type === 'empty' 
-                      ? '空相/Empty' 
-                      : getSubstanceNameJaById(grid[hoveredCell.y]?.[hoveredCell.x]?.type)})
+                      ? 'Empty' 
+                      : getSubstanceNameEnById(grid[hoveredCell.y]?.[hoveredCell.x]?.type)})
                   </div>
                 )}
               </div>
@@ -1304,15 +1446,15 @@ export default function App() {
               合成レシピ
             </button>
             <button
-              onClick={() => setActiveTab('oracle')}
+              onClick={() => setActiveTab('achievements')}
               className={`py-2 px-1 rounded-lg transition-all cursor-pointer ${
-                activeTab === 'oracle' 
+                activeTab === 'achievements' 
                   ? 'bg-white text-slate-900 border border-slate-300/85 shadow-sm font-bold' 
                   : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50/50'
               }`}
-              id="tab_oracle"
+              id="tab_achievements"
             >
-              創世 of Oracle
+              実績
             </button>
           </div>
 
@@ -1866,57 +2008,170 @@ export default function App() {
               </div>
             )}
 
-            {/* 4. AI ORACLE TAB */}
-            {!draggedCell && activeTab === 'oracle' && (
-              <div className="flex flex-col gap-4 animate-fade-in flex-1" id="oracle_panel">
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-mono text-slate-500 flex items-center gap-1">
-                    <Sparkles className="w-3.5 h-3.5 text-yellow-600" />
-                    創世の信託 (Gemini Oracle AI)
-                  </span>
-                  <p className="text-[10px] text-slate-400 font-mono leading-relaxed">
-                    万物の知識を持つ全知全能の信託。物質の英語スペル、合成方法のヒント、科学的な役割について謎解きのように導いてくれます。
+            {/* 4. ACHIEVEMENTS TAB */}
+            {!draggedCell && activeTab === 'achievements' && (
+              <div className="flex flex-col gap-3 animate-fade-in flex-1 h-full min-h-[480px]" id="achievements_panel">
+                <div className="flex flex-col">
+                  <span className="text-xs font-mono text-slate-500">宇宙と物質の進化実績</span>
+                  <p className="text-[10px] text-slate-400 font-mono mt-0.5 leading-relaxed">
+                    最終目標「宇宙」を頂点とする合成と発展の系譜。ドラッグで図を移動でき、各実績にホバーすると詳細（吹き出し）と図が表示されます。
                   </p>
                 </div>
 
-                {/* Oracle Dialogue Bubble */}
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex-1 flex flex-col gap-3 min-h-[160px] relative shadow-inner">
-                  <div className="absolute top-2 right-2 flex items-center gap-1.5 text-[9px] text-slate-700 px-2 py-0.5 rounded-full bg-white border border-slate-200 font-mono">
-                    <Atom className="w-2.5 h-2.5 text-yellow-600 animate-spin-slow" />
-                    <span>ACTIVE CONNECTION</span>
-                  </div>
-                  
-                  <div className="text-xs font-mono text-slate-700 leading-relaxed overflow-y-auto max-h-[220px] whitespace-pre-wrap flex-1 pr-1" id="oracle_bubble">
-                    {oracleAnswer}
-                  </div>
-                </div>
-
-                {/* Oracle Submission Form */}
-                <form onSubmit={handleAskOracle} className="flex gap-2 shrink-0" id="oracle_form">
-                  <input
-                    type="text"
-                    value={oracleQuestion}
-                    onChange={(e) => setOracleQuestion(e.target.value)}
-                    placeholder="アミノ酸はどう作る？ / 磁石のスペルは？"
-                    disabled={isOracleLoading}
-                    className="flex-1 bg-white border border-slate-200 focus:border-yellow-500 outline-none rounded-lg px-3 py-2 text-xs font-mono text-slate-800 placeholder-slate-300 disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={isOracleLoading || !oracleQuestion.trim()}
-                    className="bg-yellow-50 hover:bg-yellow-100 text-yellow-800 border border-yellow-200 active:scale-95 disabled:opacity-40 px-4 py-2 rounded-lg font-mono text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shrink-0"
-                    id="oracle_submit_btn"
+                {/* Tree Viewport (Canvas / Outer Container) */}
+                <div 
+                  className="relative flex-1 min-h-[380px] max-h-[480px] bg-slate-900 border border-slate-950 rounded-xl overflow-hidden cursor-grab active:cursor-grabbing shadow-inner"
+                  onMouseDown={(e) => {
+                    // SVG, buttons, or popup clicks shouldn't pan
+                    if ((e.target as HTMLElement).closest('.achievement-node') || (e.target as HTMLElement).closest('.achievement-popup')) return;
+                    setIsDraggingPan(true);
+                    setDragStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+                  }}
+                  onMouseMove={(e) => {
+                    if (!isDraggingPan) return;
+                    setPanOffset({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+                  }}
+                  onMouseUp={() => setIsDraggingPan(false)}
+                  onMouseLeave={() => setIsDraggingPan(false)}
+                >
+                  {/* Inner Absolute Container that is panned */}
+                  <div 
+                    className="absolute origin-top-left transition-transform duration-75 select-none"
+                    style={{ 
+                      transform: `translate(${panOffset.x}px, ${panOffset.y}px)`, 
+                      width: '1050px', 
+                      height: '750px' 
+                    }}
                   >
-                    {isOracleLoading ? (
-                      <span className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>
-                        <Send className="w-3.5 h-3.5" />
-                        <span>問う</span>
-                      </>
-                    )}
+                    {/* SVG Connector lines */}
+                    <svg className="absolute inset-0 pointer-events-none w-[1050px] h-[750px] z-0">
+                      {ACHIEVEMENTS.map(ach => {
+                        const isUnlocked = ach.requiredSubstanceIds?.every(id => discoveredIds.includes(id)) || 
+                                           ach.requiredReactionIds?.every(id => triedReactionIds.includes(id));
+
+                        return ach.parentIds.map(parentId => {
+                          const parent = ACHIEVEMENTS.find(a => a.id === parentId);
+                          if (!parent) return null;
+
+                          const isParentUnlocked = parent.requiredSubstanceIds?.every(id => discoveredIds.includes(id)) || 
+                                                   parent.requiredReactionIds?.every(id => triedReactionIds.includes(id));
+
+                          const isLineUnlocked = isUnlocked && isParentUnlocked;
+
+                          // Coordinates
+                          const x1 = parent.x + 65; // half of node width (130px)
+                          const y1 = parent.y + 24; // half of node height (48px)
+                          const x2 = ach.x + 65;
+                          const y2 = ach.y + 24;
+                          const dy = y2 - y1;
+
+                          // Bezier Curve
+                          const pathData = `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.4}, ${x2} ${y2 - dy * 0.4}, ${x2} ${y2}`;
+
+                          return (
+                            <path
+                              key={`${parent.id}-${ach.id}`}
+                              d={pathData}
+                              fill="none"
+                              stroke={isLineUnlocked ? '#eab308' : '#1e293b'}
+                              strokeWidth={isLineUnlocked ? 2.5 : 1.5}
+                              strokeDasharray={isLineUnlocked ? 'none' : '4,4'}
+                              className="transition-all duration-300"
+                            />
+                          );
+                        });
+                      })}
+                    </svg>
+
+                    {/* Nodes layer */}
+                    {ACHIEVEMENTS.map(ach => {
+                      const isUnlocked = ach.requiredSubstanceIds?.every(id => discoveredIds.includes(id)) || 
+                                         ach.requiredReactionIds?.every(id => triedReactionIds.includes(id));
+
+                      return (
+                        <div
+                          key={ach.id}
+                          className={`absolute z-10 w-[130px] h-[48px] rounded-lg border flex flex-col justify-center items-center p-1.5 transition-all cursor-pointer select-none achievement-node ${
+                            isUnlocked 
+                              ? 'bg-[#0f172a] border-yellow-500/80 text-white shadow-md hover:scale-105 hover:border-yellow-400' 
+                              : 'bg-slate-950 border-slate-850 text-slate-600 hover:border-slate-800'
+                          }`}
+                          style={{ left: ach.x, top: ach.y }}
+                          onMouseEnter={() => setHoveredAchievement(ach)}
+                          onMouseLeave={() => setHoveredAchievement(null)}
+                        >
+                          <span className="text-sm shrink-0">{isUnlocked ? ach.iconEmoji : '🔒'}</span>
+                          <span className="text-[9px] font-mono font-bold truncate max-w-full tracking-tight">
+                            {isUnlocked ? ach.title : '？？？？'}
+                          </span>
+                        </div>
+                      );
+                    })}
+
+                    {/* FUKIDASHI POPUP (Hover Tooltip Floating inside the draggable area) */}
+                    {hoveredAchievement && (() => {
+                      const ach = hoveredAchievement;
+                      const isUnlocked = ach.requiredSubstanceIds?.every(id => discoveredIds.includes(id)) || 
+                                         ach.requiredReactionIds?.every(id => triedReactionIds.includes(id));
+
+                      // Calculate absolute popup position. Since we are inside the same panned div, 
+                      // it will follow the pan perfectly!
+                      // Let's place it right above the node.
+                      const popupWidth = 260;
+                      const popupHeight = 150;
+                      const px = ach.x + 65 - (popupWidth / 2);
+                      const py = ach.y - popupHeight - 12;
+
+                      return (
+                        <div 
+                          className="absolute z-30 w-[260px] bg-white text-slate-800 border border-slate-300 rounded-xl p-3 shadow-2xl flex flex-col gap-2 pointer-events-none achievement-popup"
+                          style={{ left: px, top: py }}
+                        >
+                          {/* Triangle pointing down */}
+                          <div className="absolute -bottom-2.5 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[10px] border-t-white drop-shadow-[0_2px_2px_rgba(0,0,0,0.1)]"></div>
+
+                          {/* Popup Content */}
+                          <div className="flex gap-3">
+                            {/* Illustration inside the bubble */}
+                            <AchievementIllustration type={ach.illustrationType} unlocked={isUnlocked} />
+
+                            <div className="flex-1 flex flex-col justify-between min-w-0">
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-sm font-mono font-bold text-slate-900 leading-tight">
+                                    {isUnlocked ? ach.title : '未解放の実績'}
+                                  </span>
+                                  {isUnlocked && <span className="text-[10px] text-green-700 bg-green-50 px-1.5 py-0.2 rounded font-bold shrink-0">完了</span>}
+                                </div>
+                                <span className="text-[9px] text-slate-400 font-mono block">
+                                  {ach.titleEn}
+                                </span>
+                              </div>
+                              <span className="text-[9px] text-yellow-700 font-bold font-mono bg-yellow-50 px-1.5 py-0.5 rounded border border-yellow-150 self-start mt-1 truncate max-w-full">
+                                {isUnlocked ? ach.subtitle : '解放条件：？？？'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <p className="text-[9.5px] text-slate-600 leading-relaxed font-sans border-t border-slate-100 pt-1.5">
+                            {isUnlocked ? ach.description : 'この実績はまだアンロックされていません。科学の力で物質を合成し、新たな発見を成し遂げてください。'}
+                          </p>
+                        </div>
+                      );
+                    })()}
+
+                  </div>
+
+                  {/* Reset view controller */}
+                  <button 
+                    onClick={() => setPanOffset({ x: -200, y: 10 })}
+                    className="absolute bottom-2.5 right-2.5 p-1.5 bg-slate-800/80 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-[10px] font-mono z-20 cursor-pointer transition-all active:scale-95 flex items-center gap-1"
+                    title="Reset view pan"
+                  >
+                    <Maximize className="w-3 h-3" />
+                    <span>位置リセット</span>
                   </button>
-                </form>
+                </div>
               </div>
             )}
 
@@ -2001,6 +2256,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* OPERATIONAL GUIDE MODAL */}
+      <GuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />
 
     </div>
   );
