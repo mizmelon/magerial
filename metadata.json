@@ -1,0 +1,6 @@
+{
+  "name": "Science Synthesis Sandbox",
+  "description": "A pixel-art, top-down science and synthesis simulation sandbox game where you drop chemical elements and compounds to guide civilization toward birthing life and creating the universe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
