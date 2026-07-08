@@ -30,7 +30,6 @@ import {
   TrendingUp
 } from 'lucide-react';
 
-const COLS = 32;
 const ROWS = 36;
 const CELL_SIZE = 12; // pixels
 
@@ -212,7 +211,51 @@ function AchievementIllustration({ type, unlocked }: { type: string; unlocked: b
 
 export default function App() {
   // --- STATE ---
-  const [grid, setGrid] = useState<GridCell[][]>(() => createInitialGrid());
+  const [colsCount, setColsCount] = useState(32);
+  const [grid, setGrid] = useState<GridCell[][]>(() => createInitialGrid(32));
+
+  // Ref to canvas parent container to dynamically size the colsCount
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleResize = (entries: ResizeObserverEntry[]) => {
+      for (const entry of entries) {
+        // Tailwind p-3 padding is 12px on each side = 24px total padding
+        const width = entry.contentRect.width;
+        const availableWidth = width - 24;
+        if (availableWidth > 0) {
+          const newCols = Math.max(32, Math.floor(availableWidth / CELL_SIZE));
+          setColsCount(newCols);
+        }
+      }
+    };
+
+    const observer = new ResizeObserver(handleResize);
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  // Sync grid columns to colsCount dynamic change
+  useEffect(() => {
+    setGrid(prev => {
+      const currentCols = prev[0]?.length || 0;
+      if (currentCols === colsCount) return prev;
+      return prev.map(row => {
+        if (colsCount > currentCols) {
+          const extra = Array.from({ length: colsCount - currentCols }, () => ({ type: 'empty', age: 0 }));
+          return [...row, ...extra];
+        } else {
+          return row.slice(0, colsCount);
+        }
+      });
+    });
+  }, [colsCount]);
   const [isPlaying, setIsPlaying] = useState(true);
   const [simSpeed, setSimSpeed] = useState<number>(100); // ms per tick
   const [typingInput, setTypingInput] = useState('');
@@ -252,6 +295,7 @@ export default function App() {
   // UI notifications
   const [notification, setNotification] = useState<{ text: string; subText: string; type: 'success' | 'info' } | null>(null);
   const [bigBangActive, setBigBangActive] = useState(false);
+  const [screenFlashColor, setScreenFlashColor] = useState<string | null>(null);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Achievements States
@@ -266,9 +310,308 @@ export default function App() {
   // Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const konamiIndexRef = useRef<number>(0);
+
+  interface VisualEffect {
+    id: string;
+    type: 'spark' | 'ring' | 'star' | 'shockwave' | 'nebula';
+    x: number;
+    y: number;
+    color: string;
+    vx: number;
+    vy: number;
+    alpha: number;
+    size: number;
+    maxLife: number;
+    life: number;
+  }
+
+  const effectsRef = useRef<VisualEffect[]>([]);
+
+  // --- EXTRA SPECIAL EFFECTS ON DISCOVERY ---
+  const triggerDiscoveryEffects = (substanceId: string, cellX?: number, cellY?: number) => {
+    const pxX = cellX !== undefined ? cellX * CELL_SIZE + CELL_SIZE / 2 : (colsCount * CELL_SIZE) / 2;
+    const pxY = cellY !== undefined ? cellY * CELL_SIZE + CELL_SIZE / 2 : (ROWS * CELL_SIZE) / 2;
+
+    const sub = SUBSTANCES.find(s => s.id === substanceId);
+    const color = sub?.color || '#facc15';
+
+    if (substanceId === 'universe') {
+      // Epic cosmic purple/pink screen flash
+      setScreenFlashColor('rgba(168, 85, 247, 0.45)');
+      setTimeout(() => setScreenFlashColor(null), 1200);
+
+      // 1. Major Big Bang Shockwaves
+      for (let i = 0; i < 5; i++) {
+        effectsRef.current.push({
+          id: Math.random().toString(),
+          type: 'shockwave',
+          x: pxX,
+          y: pxY,
+          color: i % 2 === 0 ? '#a855f7' : '#e9d5ff',
+          vx: 0,
+          vy: 0,
+          alpha: 1.0,
+          size: 5,
+          maxLife: 100 + i * 25,
+          life: 100 + i * 25
+        });
+      }
+
+      // 2. Cosmic Nebulas (glowing clouds)
+      for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 0.9 + 0.3;
+        effectsRef.current.push({
+          id: Math.random().toString(),
+          type: 'nebula',
+          x: pxX,
+          y: pxY,
+          color: ['#c084fc', '#818cf8', '#67e8f9', '#f472b6', '#fb7185'][Math.floor(Math.random() * 5)],
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 0.85,
+          size: Math.random() * 20 + 12,
+          maxLife: 140,
+          life: 140
+        });
+      }
+
+      // 3. Spreading glowing stars (Twinkling)
+      for (let i = 0; i < 100; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 5.0 + 1.5;
+        effectsRef.current.push({
+          id: Math.random().toString(),
+          type: 'star',
+          x: pxX,
+          y: pxY,
+          color: `hsla(${Math.random() * 360}, 95%, 70%, 1)`,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1.0,
+          size: Math.random() * 3.5 + 1.5,
+          maxLife: 120 + Math.random() * 60,
+          life: 120 + Math.random() * 60
+        });
+      }
+      return;
+    }
+
+    const isHighTier = sub?.era === 'cosmic' || sub?.era === 'biotech' || 
+                       ['star', 'galaxy', 'supernova', 'black_hole', 'life', 'dna', 'cell', 'bacteria', 'plant', 'electricity', 'magma', 'metal', 'silicon', 'human', 'ai'].includes(substanceId);
+
+    if (isHighTier) {
+      // Core screen flash in substance color (with safe low opacity)
+      setScreenFlashColor(color);
+      setTimeout(() => setScreenFlashColor(null), 450);
+
+      // High-tier substance core expanding rings
+      effectsRef.current.push({
+        id: Math.random().toString(),
+        type: 'ring',
+        x: pxX,
+        y: pxY,
+        color: color,
+        vx: 0,
+        vy: 0,
+        alpha: 1.0,
+        size: 3,
+        maxLife: 40,
+        life: 40
+      });
+
+      // Sparks
+      for (let i = 0; i < 35; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 3.0 + 1.2;
+        effectsRef.current.push({
+          id: Math.random().toString(),
+          type: 'spark',
+          x: pxX,
+          y: pxY,
+          color: color,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 1.0,
+          size: Math.random() * 3 + 1,
+          maxLife: 50 + Math.random() * 25,
+          life: 50 + Math.random() * 25
+        });
+      }
+    } else {
+      // Normal small flash
+      setScreenFlashColor(color);
+      setTimeout(() => setScreenFlashColor(null), 200);
+
+      // Normal substance discovery small sparkles
+      for (let i = 0; i < 15; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 1.8 + 0.6;
+        effectsRef.current.push({
+          id: Math.random().toString(),
+          type: 'spark',
+          x: pxX,
+          y: pxY,
+          color: color,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 0.9,
+          size: Math.random() * 1.8 + 0.6,
+          maxLife: 30 + Math.random() * 20,
+          life: 30 + Math.random() * 20
+        });
+      }
+    }
+  };
+
+  const spawnSparks = (cellX: number, cellY: number, color: string, count: number = 8, speedScale: number = 1.0) => {
+    const pxX = cellX * CELL_SIZE + CELL_SIZE / 2;
+    const pxY = cellY * CELL_SIZE + CELL_SIZE / 2;
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = (Math.random() * 1.5 + 0.5) * speedScale;
+      effectsRef.current.push({
+        id: Math.random().toString(),
+        type: 'spark',
+        x: pxX,
+        y: pxY,
+        color: color,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        alpha: 1.0,
+        size: Math.random() * 2 + 1,
+        maxLife: 20 + Math.random() * 15,
+        life: 20 + Math.random() * 15
+      });
+    }
+  };
+
+  const discoverSubstance = (id: string, posX?: number, posY?: number) => {
+    setDiscoveredIds(prev => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id];
+      const s = SUBSTANCES.find(sub => sub.id === id);
+      if (s) {
+        showNotification(
+          `🧪 新物質を発見: ${s.nameEn} (${s.nameJa})`,
+          `おめでとうございます！ギミック連打によって新しい物質を発見しました！`,
+          'success'
+        );
+        triggerDiscoveryEffects(id, posX, posY);
+      }
+      return next;
+    });
+  };
+
+  const updateEffects = () => {
+    effectsRef.current = effectsRef.current
+      .map(eff => {
+        const nextLife = eff.life - 1;
+        const progress = 1 - nextLife / eff.maxLife;
+        let nextSize = eff.size;
+        let nextAlpha = eff.alpha;
+
+        let nextX = eff.x + eff.vx;
+        let nextY = eff.y + eff.vy;
+
+        if (eff.type === 'shockwave') {
+          nextSize = eff.size + 4.0;
+          nextAlpha = Math.max(0, 1.0 - progress);
+        } else if (eff.type === 'ring') {
+          nextSize = eff.size + 1.5;
+          nextAlpha = Math.max(0, 1.0 - progress);
+        } else if (eff.type === 'nebula') {
+          nextX += Math.sin(eff.life / 10) * 0.25;
+          nextSize = eff.size + 0.12;
+          nextAlpha = Math.max(0, 0.85 * (1.0 - progress));
+        } else if (eff.type === 'spark' || eff.type === 'star') {
+          eff.vx *= 0.95;
+          eff.vy *= 0.95;
+          nextAlpha = Math.max(0, 1.0 - progress);
+        }
+
+        return {
+          ...eff,
+          x: nextX,
+          y: nextY,
+          size: nextSize,
+          alpha: nextAlpha,
+          life: nextLife
+        };
+      })
+      .filter(eff => eff.life > 0);
+  };
+
+  const drawEffects = (ctx: CanvasRenderingContext2D) => {
+    effectsRef.current.forEach(eff => {
+      ctx.save();
+      ctx.globalAlpha = eff.alpha;
+
+      if (eff.type === 'shockwave') {
+        ctx.strokeStyle = eff.color;
+        ctx.lineWidth = 4 * (1 - eff.life / eff.maxLife);
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.size, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.fillStyle = eff.color;
+        ctx.globalAlpha = eff.alpha * 0.12;
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.size, 0, Math.PI * 2);
+        ctx.fill();
+      } 
+      else if (eff.type === 'ring') {
+        ctx.strokeStyle = eff.color;
+        ctx.lineWidth = 2.5;
+        ctx.shadowColor = eff.color;
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.size, 0, Math.PI * 2);
+        ctx.stroke();
+      } 
+      else if (eff.type === 'nebula') {
+        const grad = ctx.createRadialGradient(eff.x, eff.y, 0, eff.x, eff.y, eff.size);
+        grad.addColorStop(0, eff.color);
+        grad.addColorStop(1, 'transparent');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.size, 0, Math.PI * 2);
+        ctx.fill();
+      } 
+      else if (eff.type === 'star') {
+        ctx.fillStyle = eff.color;
+        ctx.shadowColor = eff.color;
+        ctx.shadowBlur = 6;
+        
+        const s = eff.size;
+        ctx.beginPath();
+        ctx.moveTo(eff.x, eff.y - s * 2.5);
+        ctx.lineTo(eff.x + s * 0.8, eff.y - s * 0.8);
+        ctx.lineTo(eff.x + s * 2.5, eff.y);
+        ctx.lineTo(eff.x + s * 0.8, eff.y + s * 0.8);
+        ctx.lineTo(eff.x, eff.y + s * 2.5);
+        ctx.lineTo(eff.x - s * 0.8, eff.y + s * 0.8);
+        ctx.lineTo(eff.x - s * 2.5, eff.y);
+        ctx.lineTo(eff.x - s * 0.8, eff.y - s * 0.8);
+        ctx.closePath();
+        ctx.fill();
+      } 
+      else {
+        ctx.fillStyle = eff.color;
+        ctx.shadowColor = eff.color;
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(eff.x, eff.y, eff.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.restore();
+    });
+  };
 
   // Top-down target cursor
-  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>({ x: Math.floor(COLS / 2), y: Math.floor(ROWS / 2) });
+  const [selectedCell, setSelectedCell] = useState<{ x: number; y: number } | null>({ x: 16, y: 18 });
 
   // --- LOCAL PERSISTENCE STORAGE ---
   useEffect(() => {
@@ -278,6 +621,51 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('sss_tried_reactions', JSON.stringify(triedReactionIds));
   }, [triedReactionIds]);
+
+  // --- CHEAT UNLOCK (KONAMI CODE) ---
+  const triggerCheatUnlock = () => {
+    // Discover all substances except 'universe'
+    const cheatSubstances = SUBSTANCES.map(s => s.id).filter(id => id !== 'universe');
+    setDiscoveredIds(cheatSubstances);
+
+    // Unlock all reactions except those that result in 'universe'
+    const cheatReactions = REACTIONS.filter(r => !r.products.includes('universe')).map(r => r.id);
+    setTriedReactionIds(cheatReactions);
+
+    showNotification(
+      "✨ コナミコマンド発動！ (Cheat Activated)", 
+      "「宇宙 (Universe)」以外の全ての物質と合成レシピが解放されました！"
+    );
+  };
+
+  useEffect(() => {
+    let inputSequence: string[] = [];
+    const targetSequence = [
+      'arrowup', 'arrowup',
+      'arrowdown', 'arrowdown',
+      'arrowleft', 'arrowright',
+      'arrowleft', 'arrowright',
+      'b', 'a'
+    ];
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const key = e.key.toLowerCase();
+      inputSequence.push(key);
+      if (inputSequence.length > targetSequence.length) {
+        inputSequence.shift();
+      }
+
+      if (inputSequence.join(',') === targetSequence.join(',')) {
+        triggerCheatUnlock();
+        inputSequence = []; // Reset sequence
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // --- UNLOCKED SUBSTANCES LOGIC ---
   // A substance is "unlocked" (can be typed and spawned) if:
@@ -316,7 +704,7 @@ export default function App() {
   useEffect(() => {
     if (discoveredIds.includes('universe') && !bigBangActive) {
       setBigBangActive(true);
-      showNotification("宇宙創造 (The Big Bang)", "おめでとうございます！究極の物質「宇宙」を創造し、生命の揺りかごを完成させました！", "success");
+      showNotification("Congratsration!!!", "宇宙の創造に成功しました！", "success");
     }
   }, [discoveredIds]);
 
@@ -329,7 +717,7 @@ export default function App() {
   };
 
   // Trigger reaction discovery safely
-  const triggerDiscovery = (reaction: Reaction, p1: string, p2: string) => {
+  const triggerDiscovery = (reaction: Reaction, p1: string, p2: string, posX?: number, posY?: number) => {
     if (!triedReactionIds.includes(reaction.id)) {
       setTriedReactionIds(prev => {
         if (prev.includes(reaction.id)) return prev;
@@ -349,6 +737,8 @@ export default function App() {
                 `すべての用途を試すとタイピングアンロックされます！`,
                 'success'
               );
+              // Trigger cool synthesis sparkle/universe effect
+              triggerDiscoveryEffects(id, posX, posY);
             }
           }
         });
@@ -386,16 +776,16 @@ export default function App() {
   };
 
   // --- INITIAL GRID PRESET ---
-  function createInitialGrid(): GridCell[][] {
+  function createInitialGrid(cols: number = colsCount): GridCell[][] {
     const newGrid: GridCell[][] = Array.from({ length: ROWS }, () =>
-      Array.from({ length: COLS }, () => ({ type: 'empty', age: 0 }))
+      Array.from({ length: cols }, () => ({ type: 'empty', age: 0 }))
     );
 
-    // Create a beautiful, top-down scientific geological petri dish
+    // Create a beautiful, top-down scientific geological petri dish relative to dynamic width
     for (let y = 0; y < ROWS; y++) {
-      for (let x = 0; x < COLS; x++) {
-        // 1. Water lake in top-left
-        const distToWater = Math.hypot(x - 8, y - 10);
+      for (let x = 0; x < cols; x++) {
+        // 1. Water lake in top-left (proportionate to width)
+        const distToWater = Math.hypot(x - Math.floor(cols * 0.25), y - 10);
         if (distToWater < 5) {
           newGrid[y][x] = { type: 'water', age: 0 };
           continue;
@@ -405,8 +795,8 @@ export default function App() {
           continue;
         }
 
-        // 2. Geothermal fire pocket in bottom-right
-        const distToFire = Math.hypot(x - 24, y - 24);
+        // 2. Geothermal fire pocket in bottom-right (proportionate to width)
+        const distToFire = Math.hypot(x - Math.floor(cols * 0.75), y - 24);
         if (distToFire < 4) {
           newGrid[y][x] = { type: 'fire', age: 0 };
           continue;
@@ -416,14 +806,14 @@ export default function App() {
           continue;
         }
 
-        // 3. Stone ridge crossing from top-right to bottom-left
-        if (Math.abs((x - 18) + (y - 18) * 0.5) < 2) {
+        // 3. Stone ridge crossing from top-right to bottom-left (proportionate to width)
+        if (Math.abs((x - Math.floor(cols * 0.5)) + (y - 18) * 0.5) < 2) {
           newGrid[y][x] = { type: 'stone', age: 0 };
           continue;
         }
 
-        // 4. Random scattered soil patches
-        if (Math.hypot(x - 10, y - 24) < 5) {
+        // 4. Random scattered soil patches (proportionate to width)
+        if (Math.hypot(x - Math.floor(cols * 0.3), y - 24) < 5) {
           newGrid[y][x] = { type: 'soil', age: 0 };
           continue;
         }
@@ -433,16 +823,16 @@ export default function App() {
     return newGrid;
   }
 
-  // --- SIMULATION TICK STEP ---
   const tick = () => {
     setGrid(prevGrid => {
       // Create copy of grid
       const nextGrid = prevGrid.map(row => row.map(cell => ({ ...cell })));
+      const currentCols = nextGrid[0]?.length || 32;
 
       // 2. PROCESS CELLULAR PHYSICS FOR TOP-DOWN VIEW (Gravity is disabled, elements are stable)
       // Fire and electricity conduct/burn symmetrically, cells, bacteria, and plants grow organically.
       for (let y = 0; y < ROWS; y++) {
-        for (let x = 0; x < COLS; x++) {
+        for (let x = 0; x < currentCols; x++) {
           const cell = nextGrid[y][x];
           if (cell.type === 'empty') continue;
 
@@ -460,7 +850,7 @@ export default function App() {
                 { ny: y, nx: x - 1 }
               ];
               for (const { ny, nx } of adj) {
-                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS) {
+                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols) {
                   if (nextGrid[ny][nx].type === 'water') {
                     nextGrid[ny][nx] = { type: 'cell', age: 0 };
                     break;
@@ -480,7 +870,7 @@ export default function App() {
                 { ny: y, nx: x - 1 }
               ];
               for (const { ny, nx } of adj) {
-                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS) {
+                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols) {
                   if (nextGrid[ny][nx].type === 'plant' || nextGrid[ny][nx].type === 'protein') {
                     nextGrid[ny][nx] = { type: 'bacteria', age: 0 };
                     break;
@@ -502,14 +892,14 @@ export default function App() {
               // Check if any neighboring cell is water to provide moisture
               let hasWater = false;
               for (const { ny, nx } of adj) {
-                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS && nextGrid[ny][nx].type === 'water') {
+                if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols && nextGrid[ny][nx].type === 'water') {
                   hasWater = true;
                   break;
                 }
               }
               if (hasWater) {
                 for (const { ny, nx } of adj) {
-                  if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS && nextGrid[ny][nx].type === 'soil') {
+                  if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols && nextGrid[ny][nx].type === 'soil') {
                     nextGrid[ny][nx] = { type: 'plant', age: 0 };
                     break;
                   }
@@ -535,7 +925,7 @@ export default function App() {
             const ny = y + chosenDir.dy;
             const nx = x + chosenDir.dx;
 
-            if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS) {
+            if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols) {
               const target = nextGrid[ny][nx];
               if (target.type === 'empty') {
                 nextGrid[ny][nx] = { type: 'fire', age: 0 };
@@ -548,7 +938,7 @@ export default function App() {
                   nextGrid[ny][nx] = { type: 'fire', age: 0 };
                   if (Math.random() < 0.3) {
                     const co2X = x + (Math.random() < 0.5 ? -1 : 1);
-                    if (co2X >= 0 && co2X < COLS && nextGrid[y][co2X].type === 'empty') {
+                    if (co2X >= 0 && co2X < currentCols && nextGrid[y][co2X].type === 'empty') {
                       nextGrid[y][co2X] = { type: 'carbon_dioxide', age: 0 };
                     }
                   }
@@ -574,7 +964,7 @@ export default function App() {
             for (const d of dirs) {
               const ny = y + d.dy;
               const nx = x + d.dx;
-              if (ny >= 0 && ny < ROWS && nx >= 0 && nx < COLS) {
+              if (ny >= 0 && ny < ROWS && nx >= 0 && nx < currentCols) {
                 const target = nextGrid[ny][nx];
                 const conducts = ['water', 'metal', 'semiconductor', 'lava'].includes(target.type);
                 if (target.type === 'empty' || conducts) {
@@ -606,7 +996,7 @@ export default function App() {
     };
   }, [isPlaying, simSpeed, triedReactionIds]);
 
-  // --- RENDERING CANVAS ---
+  // --- RENDERING CANVAS WITH SMOOTH ANIMATION LOOP ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -614,159 +1004,916 @@ export default function App() {
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Clear with clean Immersive UI theme background
-    ctx.fillStyle = '#09090b'; // deep space black
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    let animationId: number;
 
-    // Draw grid lines subtly
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; // subtle grid line
-    ctx.lineWidth = 0.5;
+    const render = () => {
+      // 1. Update dynamic effects
+      updateEffects();
 
-    for (let y = 0; y < ROWS; y++) {
-      for (let x = 0; x < COLS; x++) {
-        const cell = grid[y][x];
-        const isDraggedSource = draggedCell && draggedCell.x === x && draggedCell.y === y;
-        
-        if (cell.type !== 'empty') {
-          const sub = SUBSTANCES.find(s => s.id === cell.type);
-          if (sub) {
-            // Apply unique stylized effects for ultimate/glowing items
-            if (sub.id === 'universe') {
-              // Sparkly multi-color cycling
-              const hue = (Date.now() / 15) % 360;
-              ctx.fillStyle = isDraggedSource ? `hsla(${hue}, 85%, 65%, 0.3)` : `hsla(${hue}, 85%, 65%, 1)`;
-            } else if (sub.id === 'star') {
-              // Pulse yellow/orange
-              const pulse = Math.sin(Date.now() / 100) * 0.15 + 0.85;
-              ctx.fillStyle = isDraggedSource ? `rgba(249, 115, 22, ${pulse * 0.3})` : `rgba(249, 115, 22, ${pulse})`;
-            } else if (sub.id === 'life') {
-              // Golden glow
-              const val = Math.floor(Math.sin(Date.now() / 120) * 30 + 220);
-              ctx.fillStyle = isDraggedSource ? `rgba(${val}, ${val}, 40, 0.3)` : `rgb(${val}, ${val}, 40)`;
-            } else {
-              ctx.fillStyle = isDraggedSource ? `${sub.color}4d` : sub.color; // 4d is 30% alpha in hex
+      // 2. Clear with clean Immersive UI theme background
+      ctx.fillStyle = '#09090b'; // deep space black
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 3. Draw grid lines subtly
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)'; // subtle grid line
+      ctx.lineWidth = 0.5;
+
+      const currentCols = grid[0]?.length || colsCount;
+      for (let y = 0; y < ROWS; y++) {
+        for (let x = 0; x < currentCols; x++) {
+          const cell = grid[y]?.[x] || { type: 'empty', age: 0 };
+          const isDraggedSource = draggedCell && draggedCell.x === x && draggedCell.y === y;
+          
+          if (cell.type !== 'empty') {
+            const sub = SUBSTANCES.find(s => s.id === cell.type);
+            if (sub) {
+              // Apply unique stylized effects for ultimate/glowing items
+              if (sub.id === 'universe') {
+                // Sparkly multi-color cycling
+                const hue = (Date.now() / 15) % 360;
+                ctx.fillStyle = isDraggedSource ? `hsla(${hue}, 85%, 65%, 0.3)` : `hsla(${hue}, 85%, 65%, 1)`;
+              } else if (sub.id === 'star') {
+                // Pulse yellow/orange
+                const pulse = Math.sin(Date.now() / 100) * 0.15 + 0.85;
+                ctx.fillStyle = isDraggedSource ? `rgba(249, 115, 22, ${pulse * 0.3})` : `rgba(249, 115, 22, ${pulse})`;
+              } else if (sub.id === 'life') {
+                // Golden glow
+                const val = Math.floor(Math.sin(Date.now() / 120) * 30 + 220);
+                ctx.fillStyle = isDraggedSource ? `rgba(${val}, ${val}, 40, 0.3)` : `rgb(${val}, ${val}, 40)`;
+              } else {
+                ctx.fillStyle = isDraggedSource ? `${sub.color}4d` : sub.color; // 4d is 30% alpha in hex
+              }
+              
+              // Draw pixel cell with small spacing gap for that lovely retro look
+              ctx.fillRect(x * CELL_SIZE + 1, y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
             }
-            
-            // Draw pixel cell with small spacing gap for that lovely retro look
-            ctx.fillRect(x * CELL_SIZE + 1, y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
           }
-        }
 
-        // Draw dotted border on the source slot being dragged
-        if (isDraggedSource) {
-          ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-          ctx.lineWidth = 1;
-          ctx.setLineDash([2, 2]);
-          ctx.strokeRect(x * CELL_SIZE + 1, y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
-          ctx.setLineDash([]);
-        }
-
-        // Selected target cursor crosshair (Top-down coordinates scanner with GLOWING YELLOW border)
-        if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
-          ctx.strokeStyle = '#facc15'; // bright vibrant glowing yellow border
-          ctx.lineWidth = 2.0;
-          ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-
-          // Draw retro high-tech scanner crosshair axes
-          ctx.strokeStyle = 'rgba(250, 204, 21, 0.25)';
-          ctx.lineWidth = 0.5;
-          ctx.beginPath();
-          // Horizontal scanner axis
-          ctx.moveTo(0, y * CELL_SIZE + CELL_SIZE / 2);
-          ctx.lineTo(canvas.width, y * CELL_SIZE + CELL_SIZE / 2);
-          // Vertical scanner axis
-          ctx.moveTo(x * CELL_SIZE + CELL_SIZE / 2, 0);
-          ctx.lineTo(x * CELL_SIZE + CELL_SIZE / 2, canvas.height);
-          ctx.stroke();
-        } else if (hoveredCell && hoveredCell.x === x && hoveredCell.y === y) {
-          // If we are dragging, let's show drop capability
-          if (draggedCell) {
-            const targetCell = grid[y]?.[x];
-            const hasReaction = targetCell && targetCell.type !== 'empty' && getReaction(draggedCell.type, targetCell.type);
-            
-            if (hasReaction) {
-              ctx.strokeStyle = '#10b981'; // vibrant emerald green for reaction
-              ctx.lineWidth = 2;
-              ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-              
-              // Draw small pulsing plus sign or glow for reactable targets
-              ctx.fillStyle = '#10b981';
-              ctx.font = 'bold 8px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText('+', x * CELL_SIZE + CELL_SIZE / 2, y * CELL_SIZE + CELL_SIZE / 2);
-            } else if (targetCell && targetCell.type !== 'empty') {
-              ctx.strokeStyle = '#ef4444'; // vibrant red for blocked/no reaction
-              ctx.lineWidth = 1.5;
-              ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-              
-              ctx.fillStyle = '#ef4444';
-              ctx.font = 'bold 8px sans-serif';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
-              ctx.fillText('×', x * CELL_SIZE + CELL_SIZE / 2, y * CELL_SIZE + CELL_SIZE / 2);
-            } else {
-              ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)'; // yellow for moving to empty space
-              ctx.lineWidth = 1.5;
-              ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
-            }
-          } else {
-            ctx.strokeStyle = 'rgba(250, 204, 21, 0.5)';
+          // Draw dotted border on the source slot being dragged
+          if (isDraggedSource) {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
             ctx.lineWidth = 1;
+            ctx.setLineDash([2, 2]);
+            ctx.strokeRect(x * CELL_SIZE + 1, y * CELL_SIZE + 1, CELL_SIZE - 2, CELL_SIZE - 2);
+            ctx.setLineDash([]);
+          }
+
+          // Selected target cursor crosshair (Top-down coordinates scanner with GLOWING YELLOW border)
+          if (selectedCell && selectedCell.x === x && selectedCell.y === y) {
+            ctx.strokeStyle = '#facc15'; // bright vibrant glowing yellow border
+            ctx.lineWidth = 2.0;
             ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+
+            // Draw retro high-tech scanner crosshair axes
+            ctx.strokeStyle = 'rgba(250, 204, 21, 0.25)';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            // Horizontal scanner axis
+            ctx.moveTo(0, y * CELL_SIZE + CELL_SIZE / 2);
+            ctx.lineTo(canvas.width, y * CELL_SIZE + CELL_SIZE / 2);
+            // Vertical scanner axis
+            ctx.moveTo(x * CELL_SIZE + CELL_SIZE / 2, 0);
+            ctx.lineTo(x * CELL_SIZE + CELL_SIZE / 2, canvas.height);
+            ctx.stroke();
+          } else if (hoveredCell && hoveredCell.x === x && hoveredCell.y === y) {
+            // If we are dragging, let's show drop capability
+            if (draggedCell) {
+              const targetCell = grid[y]?.[x];
+              const hasReaction = targetCell && targetCell.type !== 'empty' && getReaction(draggedCell.type, targetCell.type);
+              
+              if (hasReaction) {
+                ctx.strokeStyle = '#10b981'; // vibrant emerald green for reaction
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                
+                // Draw small pulsing plus sign or glow for reactable targets
+                ctx.fillStyle = '#10b981';
+                ctx.font = 'bold 8px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('+', x * CELL_SIZE + CELL_SIZE / 2, y * CELL_SIZE + CELL_SIZE / 2);
+              } else if (targetCell && targetCell.type !== 'empty') {
+                ctx.strokeStyle = '#ef4444'; // vibrant red for blocked/no reaction
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                
+                ctx.fillStyle = '#ef4444';
+                ctx.font = 'bold 8px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('×', x * CELL_SIZE + CELL_SIZE / 2, y * CELL_SIZE + CELL_SIZE / 2);
+              } else {
+                ctx.strokeStyle = 'rgba(250, 204, 21, 0.8)'; // yellow for moving to empty space
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+              }
+            } else {
+              ctx.strokeStyle = 'rgba(250, 204, 21, 0.5)';
+              ctx.lineWidth = 1;
+              ctx.strokeRect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
           }
         }
       }
-    }
 
-    // Draw connection vector line and dragged floating pixel
-    if (draggedCell && dragCurrentCell) {
-      // 1. Connection Line
-      ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.moveTo(draggedCell.x * CELL_SIZE + CELL_SIZE / 2, draggedCell.y * CELL_SIZE + CELL_SIZE / 2);
-      ctx.lineTo(dragCurrentCell.x * CELL_SIZE + CELL_SIZE / 2, dragCurrentCell.y * CELL_SIZE + CELL_SIZE / 2);
-      ctx.stroke();
-      ctx.setLineDash([]);
-
-      // 2. Dragged substance preview floating above the current target cell
-      const sub = SUBSTANCES.find(s => s.id === draggedCell.type);
-      if (sub) {
-        ctx.fillStyle = sub.color;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetY = 4;
-        ctx.shadowOffsetX = 4;
-        
-        const size = CELL_SIZE * 1.4; // 1.4x larger to indicate it is lifted
-        const offset = (size - CELL_SIZE) / 2;
-        
-        ctx.fillRect(
-          dragCurrentCell.x * CELL_SIZE - offset,
-          dragCurrentCell.y * CELL_SIZE - offset,
-          size,
-          size
-        );
-        
-        // Draw elegant white border to emphasize the floating effect
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+      // Draw connection vector line and dragged floating pixel
+      if (draggedCell && dragCurrentCell) {
+        // 1. Connection Line
+        ctx.strokeStyle = 'rgba(250, 204, 21, 0.4)';
         ctx.lineWidth = 1.5;
-        ctx.strokeRect(
-          dragCurrentCell.x * CELL_SIZE - offset,
-          dragCurrentCell.y * CELL_SIZE - offset,
-          size,
-          size
-        );
-        
-        // Reset shadow
-        ctx.shadowBlur = 0;
-        ctx.shadowOffsetY = 0;
-        ctx.shadowOffsetX = 0;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(draggedCell.x * CELL_SIZE + CELL_SIZE / 2, draggedCell.y * CELL_SIZE + CELL_SIZE / 2);
+        ctx.lineTo(dragCurrentCell.x * CELL_SIZE + CELL_SIZE / 2, dragCurrentCell.y * CELL_SIZE + CELL_SIZE / 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // 2. Dragged substance preview floating above the current target cell
+        const sub = SUBSTANCES.find(s => s.id === draggedCell.type);
+        if (sub) {
+          ctx.fillStyle = sub.color;
+          ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 4;
+          ctx.shadowOffsetX = 4;
+          
+          const size = CELL_SIZE * 1.4; // 1.4x larger to indicate it is lifted
+          const offset = (size - CELL_SIZE) / 2;
+          
+          ctx.fillRect(
+            dragCurrentCell.x * CELL_SIZE - offset,
+            dragCurrentCell.y * CELL_SIZE - offset,
+            size,
+            size
+          );
+          
+          // Draw elegant white border to emphasize the floating effect
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+          ctx.lineWidth = 1.5;
+          ctx.strokeRect(
+            dragCurrentCell.x * CELL_SIZE - offset,
+            dragCurrentCell.y * CELL_SIZE - offset,
+            size,
+            size
+          );
+          
+          // Reset shadow
+          ctx.shadowBlur = 0;
+          ctx.shadowOffsetY = 0;
+          ctx.shadowOffsetX = 0;
+        }
       }
-    }
+
+      // 4. Draw our stunning discovery special effects on top!
+      drawEffects(ctx);
+
+      animationId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
   }, [grid, hoveredCell, selectedCell, draggedCell, dragCurrentCell]);
+
+  // --- CELL INTERACTION GIMMICKS ---
+  const handleCellClickGimmick = (x: number, y: number, currentType: string): string => {
+    const sub = SUBSTANCES.find(s => s.id === currentType);
+    const color = sub?.color || '#ffffff';
+
+    // Spawn tiny dust/chipping sparks on every click for real-time click feedback!
+    spawnSparks(x, y, color, 6, 0.8);
+
+    let resultingType = currentType;
+
+    setGrid(prev => {
+      const next = prev.map(row => row.map(c => ({ ...c })));
+      const cell = next[y]?.[x];
+      if (!cell || cell.type === 'empty') return prev;
+
+      // Increment clickCount
+      const currentCount = (cell.clickCount || 0) + 1;
+      cell.clickCount = currentCount;
+
+      // 1. Stone (石) -> Gravel (砂利) on 5th click
+      if (currentType === 'stone' && currentCount >= 5) {
+        cell.type = 'gravel';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'gravel';
+        setTimeout(() => {
+          discoverSubstance('gravel', x, y);
+        }, 0);
+      }
+      // 2. Gravel (砂利) -> Sand (砂) on 5th click
+      else if (currentType === 'gravel' && currentCount >= 5) {
+        cell.type = 'sand';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'sand';
+        setTimeout(() => {
+          discoverSubstance('sand', x, y);
+        }, 0);
+      }
+      // 3. Water (水) -> Splash particles and spread to empty adjacent cells on 3rd click
+      else if (currentType === 'water' && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: 1 },
+          { dx: 0, dy: -1 }
+        ];
+        let splashed = false;
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            if (next[ny][nx].type === 'empty' && Math.random() < 0.6) {
+              next[ny][nx] = { type: 'water', age: 0 };
+              splashed = true;
+            }
+          }
+        });
+        if (splashed) {
+          setTimeout(() => {
+            spawnSparks(x, y, '#60a5fa', 15, 1.5);
+          }, 0);
+        }
+      }
+      // 4. Fire (火) -> Flare/explosion and expand to empty/flammable neighbors on 3rd click
+      else if (currentType === 'fire' && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 }
+        ];
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            if (next[ny][nx].type === 'empty' && Math.random() < 0.5) {
+              next[ny][nx] = { type: 'fire', age: 0 };
+            }
+          }
+        });
+        setTimeout(() => {
+          spawnSparks(x, y, '#f97316', 20, 2.0);
+        }, 0);
+      }
+      // 5. Soil (土) -> Secrets unearthing (Sand/Clay/Fossil) on 5th click
+      else if (currentType === 'soil' && currentCount >= 5) {
+        const rand = Math.random();
+        let newType = 'sand';
+        if (rand < 0.1) {
+          newType = 'fossil';
+        } else if (rand < 0.3) {
+          newType = 'clay';
+        } else {
+          newType = 'sand';
+        }
+        cell.type = newType;
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = newType;
+        setTimeout(() => {
+          discoverSubstance(newType, x, y);
+        }, 0);
+      }
+      // 6. Glass (ガラス) -> Shatters into Sand (砂) on 4th click
+      else if (currentType === 'glass' && currentCount >= 4) {
+        cell.type = 'sand';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'sand';
+        setTimeout(() => {
+          spawnSparks(x, y, '#22d3ee', 25, 2.2);
+          discoverSubstance('sand', x, y);
+        }, 0);
+      }
+      // 7. Lava (溶岩) -> Cools into Stone (石) or Obsidian (黒曜石) on 4th click
+      else if (currentType === 'lava' && currentCount >= 4) {
+        const newType = Math.random() < 0.25 ? 'obsidian' : 'stone';
+        cell.type = newType;
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = newType;
+        setTimeout(() => {
+          spawnSparks(x, y, '#374151', 12, 1.0);
+          discoverSubstance(newType, x, y);
+        }, 0);
+      }
+      // 8. Plant (植物) -> Grow upwards on 3rd click
+      else if (currentType === 'plant' && currentCount >= 3) {
+        cell.clickCount = 0;
+        if (y > 0 && next[y - 1][x].type === 'empty') {
+          next[y - 1][x] = { type: 'plant', age: 0 };
+          setTimeout(() => {
+            spawnSparks(x, y - 1, '#10b981', 12, 1.2);
+          }, 0);
+        }
+      }
+      // 9. UFO -> Teleport to random spot on click
+      else if (currentType === 'ufo') {
+        cell.clickCount = 0;
+        const emptyCells: { cx: number; cy: number }[] = [];
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < colsCount; c++) {
+            if (next[r][c].type === 'empty') {
+              emptyCells.push({ cx: c, cy: r });
+            }
+          }
+        }
+        if (emptyCells.length > 0) {
+          const target = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+          next[target.cy][target.cx] = { type: 'ufo', age: 0 };
+          cell.type = 'empty';
+          resultingType = 'empty';
+          setTimeout(() => {
+            spawnSparks(x, y, '#a855f7', 15, 1.8);
+            spawnSparks(target.cx, target.cy, '#a855f7', 15, 1.8);
+          }, 0);
+        }
+      }
+      // 10. Bacteria/Cell -> Divide on 3rd click
+      else if ((currentType === 'bacteria' || currentType === 'cell') && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 }
+        ];
+        const emptyNeighbors = neighbors.filter(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          return nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS && next[ny][nx].type === 'empty';
+        });
+        if (emptyNeighbors.length > 0) {
+          const spot = emptyNeighbors[Math.floor(Math.random() * emptyNeighbors.length)];
+          next[y + spot.dy][x + spot.dx] = { type: currentType, age: 0 };
+          setTimeout(() => {
+            spawnSparks(x + spot.dx, y + spot.dy, color, 10, 1.2);
+          }, 0);
+        }
+      }
+      // 11. Dynamite/Gunpowder -> Explode on 3rd click
+      else if ((currentType === 'dynamite' || currentType === 'gunpowder') && currentCount >= 3) {
+        cell.type = 'empty';
+        resultingType = 'empty';
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (Math.random() < 0.6) {
+                next[ny][nx] = { type: 'fire', age: 0 };
+              } else {
+                next[ny][nx] = { type: 'empty', age: 0 };
+              }
+            }
+          }
+        }
+        setTimeout(() => {
+          spawnSparks(x, y, '#f97316', 30, 3.0);
+          spawnSparks(x, y, '#ef4444', 30, 2.5);
+          setScreenFlashColor('rgba(239, 68, 68, 0.25)');
+          setTimeout(() => setScreenFlashColor(null), 300);
+        }, 0);
+      }
+      // 12. Electricity (電気) -> High frequency shockwave on 3rd click!
+      else if (currentType === 'electricity' && currentCount >= 3) {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#facc15', 25, 2.0);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#facc15',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 3,
+            maxLife: 25,
+            life: 25
+          });
+        }, 0);
+        // Charge nearby metallic items
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (['metal', 'semiconductor', 'steel', 'bronze'].includes(next[ny][nx].type)) {
+                setTimeout(() => {
+                  spawnSparks(nx, ny, '#e2e8f0', 8, 1.2);
+                }, 0);
+              }
+            }
+          }
+        }
+      }
+      // 13. Steam (水蒸気) -> Rain condensation on 3rd click!
+      else if (currentType === 'steam' && currentCount >= 3) {
+        cell.type = 'water';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'water';
+        setTimeout(() => {
+          spawnSparks(x, y, '#3b82f6', 15, 1.2);
+        }, 0);
+      }
+      // 14. Obsidian (黒曜石) -> Shatter into sharp glass on 6th click
+      else if (currentType === 'obsidian' && currentCount >= 6) {
+        cell.type = 'glass';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'glass';
+        setTimeout(() => {
+          spawnSparks(x, y, '#a855f7', 20, 1.5);
+          discoverSubstance('glass', x, y);
+        }, 0);
+      }
+      // 15. Oxygen (酸素) / Hydrogen (水素) / Carbon Dioxide (二酸化炭素) -> Pop gas bubble!
+      else if (['oxygen', 'hydrogen', 'carbon_dioxide'].includes(currentType) && currentCount >= 3) {
+        cell.type = 'empty';
+        resultingType = 'empty';
+        const popColor = currentType === 'oxygen' ? '#38bdf8' : (currentType === 'hydrogen' ? '#22d3ee' : '#94a3b8');
+        setTimeout(() => {
+          spawnSparks(x, y, popColor, 18, 1.5);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'ring',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: popColor,
+            vx: 0,
+            vy: 0,
+            alpha: 0.8,
+            size: 1,
+            maxLife: 20,
+            life: 20
+          });
+        }, 0);
+      }
+      // 16. Metal (金属) -> Magnetize or polish sparkle!
+      else if (currentType === 'metal' && currentCount >= 5) {
+        cell.clickCount = 0;
+        // Search if any magnet is nearby (within 3 cells)
+        let magnetNearby = false;
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'magnet') {
+                magnetNearby = true;
+                break;
+              }
+            }
+          }
+        }
+        if (magnetNearby) {
+          cell.type = 'magnet';
+          cell.age = 0;
+          resultingType = 'magnet';
+          setTimeout(() => {
+            spawnSparks(x, y, '#f43f5e', 18, 1.5);
+            discoverSubstance('magnet', x, y);
+          }, 0);
+        } else {
+          setTimeout(() => {
+            spawnSparks(x, y, '#fef08a', 15, 1.8);
+          }, 0);
+        }
+      }
+      // 17. Magnet (磁石) -> Drag nearby metallic items on click!
+      else if (currentType === 'magnet') {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'ring',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#f43f5e',
+            vx: 0,
+            vy: 0,
+            alpha: 0.9,
+            size: 2,
+            maxLife: 30,
+            life: 30
+          });
+        }, 0);
+        // Shift metallic items closer
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              const targetType = next[ny][nx].type;
+              if (['metal', 'steel', 'iron', 'semiconductor', 'bronze', 'magnet'].includes(targetType)) {
+                // Move 1 step towards x,y if that spot is empty
+                const stepX = dx > 0 ? -1 : (dx < 0 ? 1 : 0);
+                const stepY = dy > 0 ? -1 : (dy < 0 ? 1 : 0);
+                const tx = nx + stepX;
+                const ty = ny + stepY;
+                if (tx >= 0 && tx < colsCount && ty >= 0 && ty < ROWS && next[ty][tx].type === 'empty') {
+                  next[ty][tx] = { type: targetType, age: 0 };
+                  next[ny][nx] = { type: 'empty', age: 0 };
+                }
+              }
+            }
+          }
+        }
+      }
+      // 18. Yeast (酵母) -> Fermentation Swell on 3rd click
+      else if (currentType === 'yeast' && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 }
+        ];
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            if (next[ny][nx].type === 'empty' && Math.random() < 0.45) {
+              next[ny][nx] = { type: 'yeast', age: 0 };
+            }
+          }
+        });
+        setTimeout(() => {
+          spawnSparks(x, y, '#fed7aa', 12, 1.1);
+        }, 0);
+      }
+      // 19. Acid (酸) -> Corrosive splash on 3rd click
+      else if (currentType === 'acid' && currentCount >= 3) {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#a3e635', 20, 1.8);
+        }, 0);
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 }
+        ];
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            const targetCell = next[ny][nx];
+            if (targetCell.type !== 'empty' && targetCell.type !== 'acid' && targetCell.type !== 'glass') {
+              if (Math.random() < 0.75) {
+                next[ny][nx] = { type: 'empty', age: 0 };
+                setTimeout(() => {
+                  spawnSparks(nx, ny, '#a3e635', 8, 1.0);
+                }, 0);
+              }
+            }
+          }
+        });
+      }
+      // 20. Fossil (化石) -> Prehistoric resurrection on 5th click
+      else if (currentType === 'fossil' && currentCount >= 5) {
+        const outcomes = ['life', 'stone', 'diamond', 'carbon'];
+        const chosen = outcomes[Math.floor(Math.random() * outcomes.length)];
+        cell.type = chosen;
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = chosen;
+        setTimeout(() => {
+          spawnSparks(x, y, '#a7f3d0', 25, 2.0);
+          discoverSubstance(chosen, x, y);
+        }, 0);
+      }
+      // 21. Gold (金) -> Golden Radiance on 3rd click
+      else if (currentType === 'gold' && currentCount >= 3) {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#eab308', 30, 2.2);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#fbbf24',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 4,
+            maxLife: 35,
+            life: 35
+          });
+        }, 0);
+      }
+      // 22. Diamond (ダイヤモンド) -> Prismatic burst on 5th click!
+      else if (currentType === 'diamond' && currentCount >= 5) {
+        cell.clickCount = 0;
+        const rainbowColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7'];
+        setTimeout(() => {
+          rainbowColors.forEach((rainbowCol, i) => {
+            const angle = (i / rainbowColors.length) * Math.PI * 2;
+            const speed = 2.5;
+            effectsRef.current.push({
+              id: Math.random().toString(),
+              type: 'star',
+              x: x * CELL_SIZE + CELL_SIZE / 2,
+              y: y * CELL_SIZE + CELL_SIZE / 2,
+              color: rainbowCol,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              alpha: 1.0,
+              size: 3,
+              maxLife: 30,
+              life: 30
+            });
+          });
+        }, 0);
+      }
+      // 23. Star (恒星) -> Supernova on 4th click!
+      else if (currentType === 'star' && currentCount >= 4) {
+        cell.type = 'black_hole';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'black_hole';
+        setTimeout(() => {
+          discoverSubstance('black_hole', x, y);
+          setScreenFlashColor('rgba(251, 146, 60, 0.3)');
+          setTimeout(() => setScreenFlashColor(null), 500);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#fdba74',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 5,
+            maxLife: 50,
+            life: 50
+          });
+        }, 0);
+        // Vaporize 3x3 surrounding cells
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              next[ny][nx] = { type: 'empty', age: 0 };
+            }
+          }
+        }
+      }
+      // 24. Black Hole (ブラックホール) -> Suction on click!
+      else if (currentType === 'black_hole') {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'nebula',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#6366f1',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 6,
+            maxLife: 40,
+            life: 40
+          });
+        }, 0);
+        // Absorb everything in 3-cell radius
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type !== 'empty' && next[ny][nx].type !== 'black_hole') {
+                next[ny][nx] = { type: 'empty', age: 0 };
+                setTimeout(() => {
+                  spawnSparks(nx, ny, '#818cf8', 5, 0.8);
+                }, 0);
+              }
+            }
+          }
+        }
+      }
+      // 25. AI (人工知能) -> Super intelligence wave on 3rd click!
+      else if (currentType === 'ai' && currentCount >= 3) {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#60a5fa', 20, 1.5);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'ring',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#3b82f6',
+            vx: 0,
+            vy: 0,
+            alpha: 0.9,
+            size: 3,
+            maxLife: 25,
+            life: 25
+          });
+        }, 0);
+      }
+      // 26. Laser (レーザー) -> Beam fire down on click!
+      else if (currentType === 'laser') {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#f43f5e', 15, 2.0);
+        }, 0);
+        // Burn path downwards
+        for (let ny = y + 1; ny < ROWS; ny++) {
+          const target = next[ny][x];
+          if (target.type !== 'empty') {
+            next[ny][x] = { type: 'fire', age: 0 };
+            setTimeout(() => {
+              spawnSparks(x, ny, '#f43f5e', 10, 1.5);
+            }, 0);
+            break;
+          }
+        }
+      }
+      // 27. Uranium (ウラン) -> Quantum decay on 5th click!
+      else if (currentType === 'uranium' && currentCount >= 5) {
+        cell.type = 'lead';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'lead';
+        setTimeout(() => {
+          discoverSubstance('lead', x, y);
+          setScreenFlashColor('rgba(34, 197, 94, 0.3)');
+          setTimeout(() => setScreenFlashColor(null), 600);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#22c55e',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 6,
+            maxLife: 45,
+            life: 45
+          });
+        }, 0);
+        // Transmute neighbors: water -> steam, soil -> lava
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'water') {
+                next[ny][nx] = { type: 'steam', age: 0 };
+              } else if (next[ny][nx].type === 'soil') {
+                next[ny][nx] = { type: 'lava', age: 0 };
+              }
+            }
+          }
+        }
+      }
+      // 28. Alcohol (アルコール) -> Volatilization flare on 3rd click
+      else if (currentType === 'alcohol' && currentCount >= 3) {
+        cell.type = 'fire';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'fire';
+        setTimeout(() => {
+          spawnSparks(x, y, '#ef4444', 18, 1.6);
+        }, 0);
+      }
+      // 29. Plastic (プラスチック) -> Recycle into hydrocarbon on 5th click
+      else if (currentType === 'plastic' && currentCount >= 5) {
+        cell.type = 'hydrocarbon';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'hydrocarbon';
+        setTimeout(() => {
+          spawnSparks(x, y, '#1e293b', 12, 1.0);
+          discoverSubstance('hydrocarbon', x, y);
+        }, 0);
+      }
+      // 30. Rust (錆) -> Crumbles on 4th click
+      else if (currentType === 'rust' && currentCount >= 4) {
+        cell.type = 'soil';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'soil';
+        setTimeout(() => {
+          spawnSparks(x, y, '#7c2d12', 12, 1.1);
+        }, 0);
+      }
+      // 31. Virus (ウイルス) -> Infection spread on 3rd click
+      else if (currentType === 'virus' && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neighbors = [
+          { dx: -1, dy: 0 },
+          { dx: 1, dy: 0 },
+          { dx: 0, dy: -1 },
+          { dx: 0, dy: 1 }
+        ];
+        neighbors.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            const targetType = next[ny][nx].type;
+            if (['plant', 'bacteria', 'cell', 'algae', 'yeast'].includes(targetType)) {
+              next[ny][nx] = { type: 'virus', age: 0 };
+              setTimeout(() => {
+                spawnSparks(nx, ny, '#f43f5e', 8, 1.0);
+              }, 0);
+            }
+          }
+        });
+      }
+      // 32. Algae (藻類) -> Grow into plant on 3rd click
+      else if (currentType === 'algae' && currentCount >= 3) {
+        cell.type = 'plant';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'plant';
+        setTimeout(() => {
+          spawnSparks(x, y, '#4ade80', 12, 1.2);
+          discoverSubstance('plant', x, y);
+        }, 0);
+      }
+      // 33. Helium (ヘリウム) / Neon (ネオン) / Argon (アルゴン) -> Neon plasma light ring on 3rd click
+      else if (['helium', 'neon', 'argon'].includes(currentType) && currentCount >= 3) {
+        cell.clickCount = 0;
+        const neonColor = currentType === 'helium' ? '#f472b6' : (currentType === 'neon' ? '#fb7185' : '#c084fc');
+        setTimeout(() => {
+          spawnSparks(x, y, neonColor, 15, 1.5);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'ring',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: neonColor,
+            vx: 0,
+            vy: 0,
+            alpha: 0.95,
+            size: 2,
+            maxLife: 20,
+            life: 20
+          });
+        }, 0);
+      }
+      // 34. Life (生命) -> Cure nearby viruses and enrich soil on click!
+      else if (currentType === 'life') {
+        cell.clickCount = 0;
+        setTimeout(() => {
+          spawnSparks(x, y, '#10b981', 18, 1.3);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#34d399',
+            vx: 0,
+            vy: 0,
+            alpha: 0.8,
+            size: 3,
+            maxLife: 25,
+            life: 25
+          });
+        }, 0);
+        // Transmute surrounding: virus -> bacteria, soil -> plant
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'virus') {
+                next[ny][nx] = { type: 'bacteria', age: 0 };
+              } else if (next[ny][nx].type === 'soil') {
+                next[ny][nx] = { type: 'plant', age: 0 };
+              }
+            }
+          }
+        }
+      }
+
+      return next;
+    });
+
+    return resultingType;
+  };
 
   // --- CANVAS COORD SELECTION ---
   const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -780,16 +1927,17 @@ export default function App() {
     const x = Math.floor(((e.clientX - rect.left) * scaleX) / CELL_SIZE);
     const y = Math.floor(((e.clientY - rect.top) * scaleY) / CELL_SIZE);
 
-    if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+    if (x >= 0 && x < colsCount && y >= 0 && y < ROWS) {
       setSelectedCell({ x, y });
       setHoveredCell({ x, y });
 
       // If the clicked cell contains a substance, inspect it and start dragging
       const cell = grid[y]?.[x];
       if (cell && cell.type !== 'empty') {
-        setSelectedSubstanceId(cell.type);
+        const nextType = handleCellClickGimmick(x, y, cell.type);
+        setSelectedSubstanceId(nextType);
         setActiveTab('inspector');
-        setDraggedCell({ x, y, type: cell.type });
+        setDraggedCell({ x, y, type: nextType });
         setDragCurrentCell({ x, y });
       }
     }
@@ -807,7 +1955,7 @@ export default function App() {
     const rawY = Math.floor(((e.clientY - rect.top) * scaleY) / CELL_SIZE);
 
     // Clamping to grid boundaries ensures no distance limit on dragging even when the cursor is off-canvas
-    const x = Math.max(0, Math.min(COLS - 1, rawX));
+    const x = Math.max(0, Math.min(colsCount - 1, rawX));
     const y = Math.max(0, Math.min(ROWS - 1, rawY));
 
     setHoveredCell({ x, y });
@@ -862,7 +2010,7 @@ export default function App() {
             return next;
           });
           setSelectedCell({ x: toX, y: toY });
-          triggerDiscovery(reaction, prod1, prod2);
+          triggerDiscovery(reaction, prod1, prod2, toX, toY);
         } else {
           // No reaction possible, and target is occupied. Do not replace or swap.
           setSelectedCell({ x: fromX, y: fromY });
@@ -896,6 +2044,40 @@ export default function App() {
   // Global Keydown Event Listener for screen-wide typing
   useEffect(() => {
     const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      // Konami Code Cheat (Up Up Down Down Left Right Left Right B A)
+      const konamiCode = [
+        'arrowup', 'arrowup',
+        'arrowdown', 'arrowdown',
+        'arrowleft', 'arrowright',
+        'arrowleft', 'arrowright',
+        'b', 'a'
+      ];
+      const pressedKey = e.key.toLowerCase();
+      if (pressedKey === konamiCode[konamiIndexRef.current]) {
+        konamiIndexRef.current++;
+        if (konamiIndexRef.current === konamiCode.length) {
+          konamiIndexRef.current = 0;
+          
+          // Unlock all substances except 'universe'
+          const substancesToUnlock = SUBSTANCES.filter(s => s.id !== 'universe').map(s => s.id);
+          const reactionsToUnlock = REACTIONS.filter(r => {
+            const isUniverseInput = r.a === 'universe' || r.b === 'universe';
+            const isUniverseOutput = r.products.includes('universe');
+            return !isUniverseInput && !isUniverseOutput;
+          }).map(r => r.id);
+
+          setDiscoveredIds(substancesToUnlock);
+          setTriedReactionIds(reactionsToUnlock);
+          showNotification("🔓 裏技発動！", "「宇宙」を除く、すべての物質とレシピが解禁されました！", "success");
+        }
+      } else {
+        if (pressedKey === konamiCode[0]) {
+          konamiIndexRef.current = 1;
+        } else {
+          konamiIndexRef.current = 0;
+        }
+      }
+
       // Ignore typing if focused on any standard inputs (e.g., AI oracle prompt box)
       const activeEl = document.activeElement;
       if (
@@ -934,7 +2116,7 @@ export default function App() {
             offsets.forEach(({ dx, dy }) => {
               const cx = targetX + dx;
               const cy = targetY + dy;
-              if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
+              if (cx >= 0 && cx < colsCount && cy >= 0 && cy < ROWS) {
                 next[cy][cx] = { type: 'empty', age: 0 };
               }
             });
@@ -1027,7 +2209,7 @@ export default function App() {
       offsets.forEach(({ dx, dy }) => {
         const cx = targetX + dx;
         const cy = targetY + dy;
-        if (cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS) {
+        if (cx >= 0 && cx < colsCount && cy >= 0 && cy < ROWS) {
           const currentCell = next[cy][cx];
           if (currentCell.type === 'empty') {
             next[cy][cx] = { type: substanceId, age: 0 };
@@ -1047,7 +2229,7 @@ export default function App() {
 
     // Trigger any discovered reactions sequentially
     triggeredReactions.forEach(({ reaction, prod1, prod2 }) => {
-      triggerDiscovery(reaction, prod1, prod2);
+      triggerDiscovery(reaction, prod1, prod2, targetX, targetY);
     });
 
     setTypingInput('');
@@ -1056,7 +2238,7 @@ export default function App() {
   // --- EXTRA UTILITIES ---
   const clearCanvas = () => {
     setGrid(Array.from({ length: ROWS }, () =>
-      Array.from({ length: COLS }, () => ({ type: 'empty', age: 0 }))
+      Array.from({ length: colsCount }, () => ({ type: 'empty', age: 0 }))
     ));
     showNotification("🧹 キャンバスをクリアしました", "空っぽの世界から、新たな物質創造を始めましょう。");
   };
@@ -1190,19 +2372,30 @@ export default function App() {
       </header>
 
       {/* MAIN GAMEBOARD WORKSPACE */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 lg:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10" id="game_workspace">
+      <main className="flex-1 w-full max-w-[100vw] px-4 lg:px-8 py-4 lg:py-6 grid grid-cols-1 lg:grid-cols-12 gap-6 relative z-10" id="game_workspace">
         
-        {/* LEFT COLUMN: SIMULATION CANVAS & INPUT CONTROLS (cols 1-7) */}
-        <section className="lg:col-span-7 flex flex-col gap-4" id="simulation_section">
+        {/* LEFT COLUMN: SIMULATION CANVAS & INPUT CONTROLS (cols 1-8) */}
+        <section className="lg:col-span-8 flex flex-col gap-4" id="simulation_section">
           
 
           {/* SIMULATOR SCREEN & CONTROL DASHBOARD */}
           <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 shadow-sm text-slate-900" id="sandbox_frame">
             
             {/* CANVAS WRAPPER */}
-            <div className="flex justify-center bg-[#09090b] p-3 rounded-lg border border-slate-300 relative group shadow-sm" id="canvas_container">
+            <div ref={containerRef} className="w-full flex justify-center bg-[#09090b] p-3 rounded-lg border border-slate-300 relative group shadow-sm overflow-hidden" id="canvas_container">
               {/* Top-down sky helper indicator line */}
               <div className="absolute top-3 left-3 right-3 h-0.5 border-t border-dashed border-white/5 pointer-events-none"></div>
+
+              {/* Dynamic screen flash overlay for discovery feedback */}
+              {screenFlashColor && (
+                <div 
+                  className="absolute inset-0 z-20 pointer-events-none transition-all duration-300 animate-pulse"
+                  style={{
+                    background: `radial-gradient(circle at 50% 50%, ${screenFlashColor} 0%, transparent 75%)`,
+                    mixBlendMode: 'screen'
+                  }}
+                />
+              )}
 
               {/* CONFINED NOTIFICATION TOAST OVER CANVAS */}
               {notification && (
@@ -1268,7 +2461,7 @@ export default function App() {
               
               <canvas
                 ref={canvasRef}
-                width={COLS * CELL_SIZE}
+                width={colsCount * CELL_SIZE}
                 height={ROWS * CELL_SIZE}
                 onMouseDown={handleCanvasMouseDown}
                 onMouseMove={handleCanvasMouseMove}
@@ -1281,7 +2474,7 @@ export default function App() {
               {/* Grid HUD overlay */}
               <div className="absolute bottom-4 left-4 bg-slate-900/95 border border-slate-700 px-3 py-1.5 rounded text-[10px] font-mono text-slate-100 flex flex-col gap-1 pointer-events-none shadow-md max-w-[280px]">
                 <div className="flex gap-2">
-                  <span>GRID: {COLS}x{ROWS}</span>
+                  <span>GRID: {colsCount}x{ROWS}</span>
                   <span>•</span>
                   <span>SPEED: {simSpeed}ms</span>
                 </div>
@@ -1407,8 +2600,8 @@ export default function App() {
             </div>
           </div>
         </section>
-              {/* RIGHT COLUMN: DETAILED SIDEBAR PANELS (cols 8-12) */}
-        <section className="lg:col-span-5 flex flex-col gap-4 h-[calc(100vh-140px)] min-h-[500px]" id="sidebar_section">
+        {/* RIGHT COLUMN: DETAILED SIDEBAR PANELS (cols 9-12) */}
+        <section className="lg:col-span-4 flex flex-col gap-4 h-[calc(100vh-140px)] min-h-[500px]" id="sidebar_section">
           
           {/* TAB SELECTION NAVIGATION */}
           <div className="grid grid-cols-4 bg-slate-100 p-1 border border-slate-200 rounded-xl font-mono text-xs font-semibold shrink-0" id="sidebar_tabs">
@@ -2206,56 +3399,6 @@ export default function App() {
           <span className="text-slate-500">Language: English (Substances) / Japanese (UI)</span>
         </div>
       </footer>
-
-      {/* BIG BANG VICTORY MODAL OVERLAY */}
-      {bigBangActive && (
-        <div className="fixed inset-0 z-50 bg-[#050508]/95 backdrop-blur-md flex items-center justify-center p-4" id="victory_modal">
-          <div className="bg-[#0a0a14] border border-cyan-500/40 max-w-lg w-full p-6 rounded-2xl shadow-2xl shadow-cyan-500/10 text-center flex flex-col items-center gap-5 relative overflow-hidden animate-fade-in">
-            {/* Ambient animated cosmic particles */}
-            <div className="absolute -top-10 -left-10 w-40 h-40 bg-cyan-500/10 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl animate-pulse"></div>
-            
-            <div className="p-4 bg-gradient-to-tr from-cyan-500 to-indigo-600 rounded-full text-slate-900 animate-spin-slow">
-              <Globe className="w-10 h-10 text-slate-950" />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <h2 className="text-2xl font-bold tracking-wider font-mono bg-gradient-to-r from-cyan-200 via-indigo-300 to-purple-300 bg-clip-text text-transparent">
-                COSMIC GENERATION COMPLETE!
-              </h2>
-              <span className="text-xs text-cyan-400 font-mono uppercase tracking-widest font-semibold text-indigo-300">
-                大いなる大いなる宇宙の誕生
-              </span>
-            </div>
-
-            <p className="text-xs text-slate-300 leading-relaxed font-mono bg-[#050508]/60 p-4 rounded-xl border border-[#2a2a40] text-left">
-              若き創造主よ！あなたは基本物質である水、火、土、石、電気を駆使し、
-              分子の分解から最先端の半導体・技術文明を育み、ついに生命（Life）を覚醒させました。
-              そしてその大いなる力は銀河を繋ぎ、時空の終着点である「宇宙（Universe）」の創造を遂げました。
-              <br /><br />
-              自然界における元素とテクノロジーの驚異的な結びつきを理解した、あなたこそ真の科学の設計者です。
-            </p>
-
-            <div className="flex gap-3 font-mono text-xs w-full">
-              <button
-                onClick={() => setBigBangActive(false)}
-                className="flex-1 py-2.5 bg-cyan-500/20 hover:bg-cyan-500/40 text-cyan-300 border border-cyan-400/50 rounded-lg font-bold transition-all cursor-pointer"
-              >
-                このまま創造を続ける
-              </button>
-              <button
-                onClick={() => {
-                  setBigBangActive(false);
-                  resetProgress();
-                }}
-                className="flex-1 py-2.5 bg-[#050508] hover:bg-red-950/40 text-slate-400 hover:text-red-300 rounded-lg border border-[#2a2a40] font-bold transition-all cursor-pointer"
-              >
-                新たな輪廻を始める
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* OPERATIONAL GUIDE MODAL */}
       <GuideModal isOpen={showGuide} onClose={() => setShowGuide(false)} />

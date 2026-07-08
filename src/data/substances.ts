@@ -48,6 +48,16 @@ export const SUBSTANCES: Substance[] = [
     era: 'primitive',
   },
   {
+    id: 'gravel',
+    nameEn: 'Gravel',
+    nameJa: '砂利',
+    color: '#8b8c8f', // textured gray-slate
+    state: 'solid',
+    description: '石を連打して細かく砕いた小さな岩石の破片。土木建築の基礎や舗装、ろ過材として幅広く使用されます。',
+    unlockedAtStart: false,
+    era: 'primitive',
+  },
+  {
     id: 'electricity',
     nameEn: 'Electricity',
     nameJa: '電気',
@@ -1050,13 +1060,13 @@ export const REACTIONS: Reaction[] = [
     products: ['universe'], // Let's make Planet + Life -> Universe or Planet + Star -> Galaxy
     description: '惑星に宿った生命の文明が絶頂に達し、恒星間を行き来する宇宙大の超エネルギー網を編み、究極の宇宙調和を準備します。',
   },
-  // Black Hole + Star -> Universe (Cosmic cycle!)
+  // Black Hole + Star -> Universe & Uranium (Cosmic cycle & Heavy Elements!)
   {
     id: 'black_hole_star',
     a: 'black_hole',
     b: 'star',
-    products: ['universe'],
-    description: 'あらゆる物質を飲み込むブラックホールと、すべての光を生む恒星が接触。特異点でのビッグバン現象により、時空すべてを包括する「宇宙」が再誕します！',
+    products: ['universe', 'uranium'],
+    description: 'あらゆる物質を飲み込むブラックホールと、すべての光を生む恒星が接触。特異点でのビッグバン現象により「宇宙」が再誕し、同時に超高圧降着円盤の極限空間（rプロセス）により「ウラン」も合成されます！',
   },
   // Silicon + Water -> Glass
   {
@@ -1482,14 +1492,7 @@ export const REACTIONS: Reaction[] = [
     products: ['lead'],
     description: '宇宙で最大レベルの質量を持つウラン等の超重元素が、途方もない年月をかけて放射性崩壊を繰り返した終着点（崩壊系列の終点）として、きわめて比重が高く安定した「鉛」が生成されます。',
   },
-  // 50. Star + Black Hole -> Uranium
-  {
-    id: 'star_black_hole',
-    a: 'black_hole',
-    b: 'star',
-    products: ['uranium'],
-    description: 'ブラックホール周囲の超高圧降着円盤や、中性子星（恒星の残骸）の衝突という極限空間で急激に中性子が捕獲されるrプロセスにより、天然で最も重いエネルギー金属「ウラン」が合成されます。',
-  },
+  // 50. Empty placeholder (Merged with Black Hole + Star -> Universe & Uranium)
   // 51. Carbon Dioxide + Magnesium -> Carbon
   {
     id: 'co2_magnesium',
