@@ -223,9 +223,10 @@ export default function App() {
 
     const handleResize = (entries: ResizeObserverEntry[]) => {
       for (const entry of entries) {
-        // Tailwind p-3 padding is 12px on each side = 24px total padding
+        // Expanded to frame edges: container now has no inner padding (p-0).
+        // We subtract a tiny 4px buffer to account for the container's physical border lines.
         const width = entry.contentRect.width;
-        const availableWidth = width - 24;
+        const availableWidth = width - 4;
         if (availableWidth > 0) {
           const newCols = Math.max(32, Math.floor(availableWidth / CELL_SIZE));
           setColsCount(newCols);
@@ -292,6 +293,18 @@ export default function App() {
     return [];
   });
 
+  const [showPauseTipBalloon, setShowPauseTipBalloon] = useState<boolean>(() => {
+    const dismissed = localStorage.getItem('sss_dismissed_pause_tip_balloon');
+    return dismissed !== 'true';
+  });
+  const [hasFireOrElectricity, setHasFireOrElectricity] = useState<boolean>(false);
+
+  const [showLockedTip, setShowLockedTip] = useState<boolean>(() => {
+    const dismissed = localStorage.getItem('sss_dismissed_locked_tip');
+    return dismissed !== 'true';
+  });
+  const [hasAttemptedLocked, setHasAttemptedLocked] = useState<boolean>(false);
+
   // UI notifications
   const [notification, setNotification] = useState<{ text: string; subText: string; type: 'success' | 'info' } | null>(null);
   const [bigBangActive, setBigBangActive] = useState(false);
@@ -306,6 +319,20 @@ export default function App() {
 
   // Auto-complete index
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
+
+  // Show pause tip when fire or electricity is first introduced
+  useEffect(() => {
+    if (!showPauseTipBalloon) return;
+
+    // Check if the grid contains fire or electricity
+    const hasActiveSubstance = grid.some(row =>
+      row.some(cell => cell.type === 'fire' || cell.type === 'electricity')
+    );
+
+    if (hasActiveSubstance) {
+      setHasFireOrElectricity(true);
+    }
+  }, [grid, showPauseTipBalloon]);
 
   // Canvas Ref
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -795,12 +822,8 @@ export default function App() {
           continue;
         }
 
-        // 2. Geothermal fire pocket in bottom-right (proportionate to width)
+        // 2. Geothermal lava pocket in bottom-right (proportionate to width)
         const distToFire = Math.hypot(x - Math.floor(cols * 0.75), y - 24);
-        if (distToFire < 4) {
-          newGrid[y][x] = { type: 'fire', age: 0 };
-          continue;
-        }
         if (distToFire < 6) {
           newGrid[y][x] = { type: 'lava', age: 0 };
           continue;
@@ -2175,6 +2198,7 @@ export default function App() {
         `🔒 未解禁の物質: ${sub.nameEn}`, 
         "この物質はまだ発見されていません！図鑑でレシピをヒントに合成してください。"
       );
+      setHasAttemptedLocked(true);
       return;
     }
 
@@ -2382,9 +2406,9 @@ export default function App() {
           <div className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col gap-4 shadow-sm text-slate-900" id="sandbox_frame">
             
             {/* CANVAS WRAPPER */}
-            <div ref={containerRef} className="w-full flex justify-center bg-[#09090b] p-3 rounded-lg border border-slate-300 relative group shadow-sm overflow-hidden" id="canvas_container">
+            <div ref={containerRef} className="w-full flex justify-center bg-slate-800 p-0 rounded-lg border border-slate-300 relative group shadow-inner overflow-hidden" id="canvas_container">
               {/* Top-down sky helper indicator line */}
-              <div className="absolute top-3 left-3 right-3 h-0.5 border-t border-dashed border-white/5 pointer-events-none"></div>
+              <div className="absolute top-1 left-1 right-1 h-0.5 border-t border-dashed border-white/10 pointer-events-none z-20"></div>
 
               {/* Dynamic screen flash overlay for discovery feedback */}
               {screenFlashColor && (
@@ -2467,9 +2491,11 @@ export default function App() {
                 onMouseMove={handleCanvasMouseMove}
                 onMouseLeave={handleCanvasLeave}
                 onMouseUp={handleCanvasMouseUp}
-                className="cursor-crosshair bg-slate-950 max-w-full rounded shadow-inner"
+                className="cursor-crosshair bg-slate-950 max-w-full rounded border-2 border-slate-700 shadow-[0_0_15px_rgba(0,0,0,0.6)] z-10"
                 id="sand_canvas"
               />
+
+
 
               {/* Grid HUD overlay */}
               <div className="absolute bottom-4 left-4 bg-slate-900/95 border border-slate-700 px-3 py-1.5 rounded text-[10px] font-mono text-slate-100 flex flex-col gap-1 pointer-events-none shadow-md max-w-[280px]">
@@ -2507,7 +2533,39 @@ export default function App() {
             <div className="flex flex-wrap items-center justify-between gap-4 font-mono text-xs" id="canvas_controls">
               
               {/* Play Pause Simulation */}
-              <div className="flex items-center gap-1.5 bg-slate-50 p-1 border border-slate-200 rounded-lg">
+              <div className="relative flex items-center gap-1.5 bg-slate-50 p-1 border border-slate-200 rounded-lg">
+                {/* PERSISTENT PLAY/PAUSE BALLOON TIP */}
+                {showPauseTipBalloon && hasFireOrElectricity && (
+                  <div 
+                    className="absolute bottom-full mb-3.5 left-0 z-40 w-[280px] bg-indigo-50 border-2 border-indigo-400 p-3.5 rounded-xl shadow-xl flex flex-col gap-2 animate-fade-in text-slate-800 font-sans pointer-events-auto"
+                    id="pause_balloon_tip"
+                  >
+                    <div className="flex items-center justify-between gap-2 font-bold text-indigo-700">
+                      <div className="flex items-center gap-1.5 text-[11px] font-mono tracking-wide uppercase">
+                        <Pause className="w-3.5 h-3.5 text-indigo-600 animate-pulse shrink-0 fill-current" />
+                        <span>💡 博士の実験アドバイス</span>
+                      </div>
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowPauseTipBalloon(false);
+                          localStorage.setItem('sss_dismissed_pause_tip_balloon', 'true');
+                        }}
+                        className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-xs font-bold p-1"
+                        title="閉じる"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="leading-relaxed text-slate-700 text-[11px]">
+                      炎や電気のように、激しく動き回る・変化する物質の挙動をじっくり観察したり、他の物質と狙い通りに合成させたりしたいときは、この<span className="font-bold text-indigo-600">一時停止ボタン</span>を使って時間を止めてから配置するのがおすすめです！
+                    </p>
+                    {/* Speech bubble triangle pointing down */}
+                    <div className="absolute -bottom-2 left-6 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-indigo-400"></div>
+                    <div className="absolute -bottom-1.5 left-6 w-0 h-0 border-l-[8px] border-l-transparent border-r-[8px] border-r-transparent border-t-[8px] border-t-indigo-50"></div>
+                  </div>
+                )}
+
                 <button
                   onClick={() => setIsPlaying(!isPlaying)}
                   className={`px-3 py-1.5 rounded flex items-center gap-1 transition-all cursor-pointer ${
@@ -2603,6 +2661,36 @@ export default function App() {
         {/* RIGHT COLUMN: DETAILED SIDEBAR PANELS (cols 9-12) */}
         <section className="lg:col-span-4 flex flex-col gap-4 h-[calc(100vh-140px)] min-h-[500px]" id="sidebar_section">
           
+          {/* LOCKED SUBSTANCE HELPER BALLOON */}
+          {showLockedTip && hasAttemptedLocked && (
+            <div 
+              className="bg-amber-50 border-2 border-amber-400 text-slate-800 rounded-xl p-4 shadow-lg relative animate-fade-in flex flex-col gap-2 shrink-0 font-sans"
+              id="locked_substance_balloon"
+            >
+              <div className="flex items-center justify-between gap-2 font-bold text-amber-700">
+                <div className="flex items-center gap-1.5 text-xs">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse shrink-0" />
+                  <span>💡 博士の実験アドバイス（未解禁の物質）</span>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowLockedTip(false);
+                    localStorage.setItem('sss_dismissed_locked_tip', 'true');
+                  }}
+                  className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer text-xs font-bold p-1"
+                  title="閉じる"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="leading-relaxed text-slate-700 text-[11px]">
+                おや、まだ解放されていない未知の物質を作ろうとしましたね！<br />
+                このゲームでは、キャンバス上に配置した<span className="font-bold text-slate-900">異なる物質同士を色々ぶつけたり（合成）</span>反応させたりすることで、新しい物質が次々と解放されていきます。<br />
+                図鑑の未解放アイテムにある「合成レシピのヒント」を手がかりに、色々な組み合わせを試してみてください！すべての合成を試すことで、新たな素材が手に入りますよ。
+              </p>
+            </div>
+          )}
+
           {/* TAB SELECTION NAVIGATION */}
           <div className="grid grid-cols-4 bg-slate-100 p-1 border border-slate-200 rounded-xl font-mono text-xs font-semibold shrink-0" id="sidebar_tabs">
             <button
