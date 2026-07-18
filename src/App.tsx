@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { SUBSTANCES, REACTIONS, getReaction } from './data/substances';
+import { SUBSTANCES, REACTIONS, getReaction, getReactions } from './data/substances';
 import { ACHIEVEMENTS, Achievement } from './data/achievements';
 import { Substance, Reaction } from './types';
 import GuideModal from './components/GuideModal';
@@ -36,6 +36,211 @@ const CELL_SIZE = 12; // pixels
 interface GridCell {
   type: string; // substance ID or 'empty'
   age: number;
+  clickCount?: number;
+}
+
+// Lazy-loaded AudioContext to bypass browser autoplay policies
+let audioCtx: AudioContext | null = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  }
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  return audioCtx;
+}
+
+export function playSynthSound(type: 'metal' | 'explosion' | 'water' | 'electric' | 'crystal' | 'cosmic' | 'bubble' | 'plant' | 'click' | 'magic') {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    
+    const now = ctx.currentTime;
+    
+    switch (type) {
+      case 'metal': {
+        const freqs = [350, 440, 880, 1200, 1600];
+        freqs.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now);
+          
+          gainNode.gain.setValueAtTime(idx === 0 ? 0.15 : 0.05, now);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.4);
+          
+          osc.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          osc.start(now);
+          osc.stop(now + 0.4);
+        });
+        break;
+      }
+      case 'explosion': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, now);
+        osc.frequency.exponentialRampToValueAtTime(10, now + 0.6);
+        
+        gainNode.gain.setValueAtTime(0.3, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.6);
+        break;
+      }
+      case 'water': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(400, now);
+        osc.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+        
+        gainNode.gain.setValueAtTime(0.15, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.15);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.15);
+        break;
+      }
+      case 'electric': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(1200, now);
+        osc.frequency.linearRampToValueAtTime(400, now + 0.05);
+        osc.frequency.linearRampToValueAtTime(1000, now + 0.1);
+        
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.linearRampToValueAtTime(0.08, now + 0.05);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.12);
+        break;
+      }
+      case 'crystal': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1800, now);
+        
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.8);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.8);
+        break;
+      }
+      case 'cosmic': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(100, now);
+        osc.frequency.exponentialRampToValueAtTime(600, now + 0.5);
+        
+        gainNode.gain.setValueAtTime(0.2, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.5);
+        break;
+      }
+      case 'bubble': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, now);
+        osc.frequency.exponentialRampToValueAtTime(800, now + 0.06);
+        
+        gainNode.gain.setValueAtTime(0.1, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.06);
+        break;
+      }
+      case 'plant': {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(120, now + 0.08);
+        
+        gainNode.gain.setValueAtTime(0.25, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.08);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.08);
+        break;
+      }
+      case 'magic': {
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+          const osc = ctx.createOscillator();
+          const gainNode = ctx.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.06);
+          
+          gainNode.gain.setValueAtTime(0, now);
+          gainNode.gain.linearRampToValueAtTime(0.1, now + idx * 0.06 + 0.01);
+          gainNode.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.06 + 0.25);
+          
+          osc.connect(gainNode);
+          gainNode.connect(ctx.destination);
+          
+          osc.start(now + idx * 0.06);
+          osc.stop(now + idx * 0.06 + 0.25);
+        });
+        break;
+      }
+      default: {
+        const osc = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(1000, now);
+        
+        gainNode.gain.setValueAtTime(0.05, now);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + 0.05);
+        
+        osc.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        osc.start(now);
+        osc.stop(now + 0.05);
+        break;
+      }
+    }
+  } catch (error) {
+    console.warn("Audio Context is blocked/unsupported", error);
+  }
 }
 
 // Beautiful inline SVG/CSS illustrations for achievements
@@ -1205,6 +1410,25 @@ export default function App() {
     const sub = SUBSTANCES.find(s => s.id === currentType);
     const color = sub?.color || '#ffffff';
 
+    // Play a tailored tactile sound based on the material's character
+    if (['stone', 'gravel', 'metal', 'steel', 'gold', 'bronze', 'copper', 'iron', 'silver', 'platinum', 'lead', 'fossil'].includes(currentType)) {
+      playSynthSound('metal');
+    } else if (['water', 'steam', 'salt', 'acid', 'alcohol', 'liquid'].includes(currentType) || sub?.state === 'liquid') {
+      playSynthSound('bubble');
+    } else if (['fire', 'lava', 'electricity', 'energy', 'laser', 'uranium'].includes(currentType)) {
+      playSynthSound('electric');
+    } else if (['plant', 'soil', 'algae', 'yeast', 'clay', 'bacteria', 'cell', 'life', 'virus'].includes(currentType)) {
+      playSynthSound('plant');
+    } else if (['helium', 'neon', 'argon', 'oxygen', 'hydrogen', 'carbon_dioxide', 'gas'].includes(currentType) || sub?.state === 'gas') {
+      playSynthSound('bubble');
+    } else if (['glass', 'obsidian', 'diamond', 'silicon'].includes(currentType)) {
+      playSynthSound('crystal');
+    } else if (['star', 'planet', 'black_hole', 'universe', 'ufo', 'computer', 'ai'].includes(currentType)) {
+      playSynthSound('cosmic');
+    } else {
+      playSynthSound('click');
+    }
+
     // Spawn tiny dust/chipping sparks on every click for real-time click feedback!
     spawnSparks(x, y, color, 6, 0.8);
 
@@ -1219,12 +1443,632 @@ export default function App() {
       const currentCount = (cell.clickCount || 0) + 1;
       cell.clickCount = currentCount;
 
+      // --- BRAND NEW RAPID-CLICK (連打) GIMMICKS ---
+
+      // B1. Potassium (カリウム) / Sodium (ナトリウム) -> Reactive Water Explosion on 3rd click
+      if (['potassium', 'sodium'].includes(currentType) && currentCount >= 3) {
+        cell.clickCount = 0;
+        let hasWetness = false;
+        let targetXCoord = x;
+        let targetYCoord = y;
+        
+        // Check for adjacent water or acid
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (['water', 'acid'].includes(next[ny][nx].type)) {
+                hasWetness = true;
+                targetXCoord = nx;
+                targetYCoord = ny;
+                break;
+              }
+            }
+          }
+          if (hasWetness) break;
+        }
+
+        if (hasWetness) {
+          playSynthSound('explosion');
+          cell.type = 'empty';
+          resultingType = 'empty';
+          
+          setTimeout(() => {
+            setScreenFlashColor('rgba(239, 68, 68, 0.35)');
+            setTimeout(() => setScreenFlashColor(null), 400);
+            spawnSparks(targetXCoord, targetYCoord, '#f59e0b', 35, 2.5);
+            spawnSparks(targetXCoord, targetYCoord, '#ef4444', 30, 2.0);
+            
+            effectsRef.current.push({
+              id: Math.random().toString(),
+              type: 'shockwave',
+              x: targetXCoord * CELL_SIZE + CELL_SIZE / 2,
+              y: targetYCoord * CELL_SIZE + CELL_SIZE / 2,
+              color: '#f97316',
+              vx: 0,
+              vy: 0,
+              alpha: 1.0,
+              size: 5,
+              maxLife: 40,
+              life: 40
+            });
+            
+            showNotification(
+              "💥 アルカリ金属の激水爆発",
+              `${currentType === 'potassium' ? 'カリウム' : 'ナトリウム'}が隣接する液体と激しく化学反応し、爆発しました！`,
+              "info"
+            );
+          }, 0);
+
+          // Transmute adjacent elements around the wet spot to fire & steam
+          for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+              const nx = targetXCoord + dx;
+              const ny = targetYCoord + dy;
+              if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+                if (['water', 'acid', 'empty'].includes(next[ny][nx].type)) {
+                  next[ny][nx] = { type: Math.random() < 0.65 ? 'fire' : 'steam', age: 0 };
+                }
+              }
+            }
+          }
+        } else {
+          playSynthSound('metal');
+          setTimeout(() => {
+            spawnSparks(x, y, '#cbd5e1', 12, 1.2);
+          }, 0);
+        }
+      }
+      // B2. Mercury (水銀) -> Coalescence pull on 3rd click
+      else if (currentType === 'mercury' && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('bubble');
+        setTimeout(() => {
+          playSynthSound('metal');
+          spawnSparks(x, y, '#94a3b8', 20, 1.6);
+          showNotification(
+            "🧪 水銀滴の表面張力吸引",
+            "水銀を叩くことで分子引力が活性化し、周囲の水銀滴を引き寄せます！",
+            "info"
+          );
+        }, 0);
+        // Pull other mercury elements 1-step closer
+        for (let dy = -4; dy <= 4; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'mercury') {
+                const stepX = dx > 0 ? -1 : (dx < 0 ? 1 : 0);
+                const stepY = dy > 0 ? -1 : (dy < 0 ? 1 : 0);
+                const tx = nx + stepX;
+                const ty = ny + stepY;
+                if (tx >= 0 && tx < colsCount && ty >= 0 && ty < ROWS && next[ty][tx].type === 'empty') {
+                  next[ty][tx] = { type: 'mercury', age: 0 };
+                  next[ny][nx] = { type: 'empty', age: 0 };
+                }
+              }
+            }
+          }
+        }
+      }
+      // B3. Silver (銀) -> Purifying Silver Ion Flash on 3rd click
+      else if (currentType === 'silver' && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('crystal');
+        setTimeout(() => {
+          playSynthSound('magic');
+          spawnSparks(x, y, '#e2e8f0', 25, 2.0);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#cbd5e1',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 4,
+            maxLife: 30,
+            life: 30
+          });
+          showNotification(
+            "✨ 銀イオンの抗菌閃光",
+            "銀の結晶共鳴による抗菌活性波が、周囲のすべてのウイルスと細菌を滅菌しました！",
+            "success"
+          );
+        }, 0);
+        // Clear all virus and bacteria in a 4-cell radius
+        for (let dy = -4; dy <= 4; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (['virus', 'bacteria'].includes(next[ny][nx].type)) {
+                next[ny][nx] = { type: 'empty', age: 0 };
+                setTimeout(() => spawnSparks(nx, ny, '#cbd5e1', 6, 0.8), 50);
+              }
+            }
+          }
+        }
+      }
+      // B4. Copper (銅) -> Conductivity spread on 3rd click
+      else if (currentType === 'copper' && currentCount >= 3) {
+        cell.clickCount = 0;
+        let isCharged = false;
+        // Search for any electricity in a 4-cell radius
+        for (let dy = -4; dy <= 4; dy++) {
+          for (let dx = -4; dx <= 4; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'electricity') {
+                isCharged = true;
+                break;
+              }
+            }
+          }
+          if (isCharged) break;
+        }
+
+        if (isCharged) {
+          playSynthSound('electric');
+          setTimeout(() => {
+            spawnSparks(x, y, '#facc15', 25, 2.0);
+            showNotification(
+              "⚡ 銅の超導電励起",
+              "高導電率の銅が周囲の電気を吸収増幅し、プラズマ電荷を急放出しました！",
+              "info"
+            );
+          }, 0);
+          // Spawn electricity in all adjacent empty cells
+          const neighbors = [
+            { dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+            { dx: -1, dy: -1 }, { dx: 1, dy: -1 }, { dx: -1, dy: 1 }, { dx: 1, dy: 1 }
+          ];
+          neighbors.forEach(({ dx, dy }) => {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'empty') {
+                next[ny][nx] = { type: 'electricity', age: 0 };
+              }
+            }
+          });
+        } else {
+          playSynthSound('metal');
+          setTimeout(() => {
+            spawnSparks(x, y, '#b45309', 12, 1.1);
+          }, 0);
+        }
+      }
+      // B5. Platinum (白金) -> Catalytic Acceleration on 3rd click
+      else if (currentType === 'platinum' && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('magic');
+        let catalyzed = false;
+        
+        // Search neighbors for reactive gas pairs (hydrogen+oxygen -> steam, or carbon+oxygen -> carbon_dioxide)
+        const adj = [
+          { dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }
+        ];
+        for (const d of adj) {
+          const nx = x + d.dx;
+          const ny = y + d.dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            const t = next[ny][nx].type;
+            if (t === 'hydrogen') {
+              // Find adjacent oxygen to hydrogen
+              for (const d2 of adj) {
+                const ox = nx + d2.dx;
+                const oy = ny + d2.dy;
+                if (ox >= 0 && ox < colsCount && oy >= 0 && oy < ROWS && next[oy][ox].type === 'oxygen') {
+                  next[ny][nx] = { type: 'steam', age: 0 };
+                  next[oy][ox] = { type: 'steam', age: 0 };
+                  catalyzed = true;
+                  break;
+                }
+              }
+            } else if (t === 'carbon') {
+              // Find adjacent oxygen to carbon
+              for (const d2 of adj) {
+                const ox = nx + d2.dx;
+                const oy = ny + d2.dy;
+                if (ox >= 0 && ox < colsCount && oy >= 0 && oy < ROWS && next[oy][ox].type === 'oxygen') {
+                  next[ny][nx] = { type: 'carbon_dioxide', age: 0 };
+                  next[oy][ox] = { type: 'carbon_dioxide', age: 0 };
+                  catalyzed = true;
+                  break;
+                }
+              }
+            }
+          }
+          if (catalyzed) break;
+        }
+
+        if (catalyzed) {
+          playSynthSound('electric');
+          setTimeout(() => {
+            spawnSparks(x, y, '#a5f3fc', 25, 2.2);
+            showNotification(
+              "🧬 白金触媒の常温化学加速",
+              "白金電極の極めて強力な触媒活性により、常温常圧での結合が劇的に加速しました！",
+              "success"
+            );
+          }, 0);
+        } else {
+          setTimeout(() => {
+            spawnSparks(x, y, '#cbd5e1', 12, 1.2);
+          }, 0);
+        }
+      }
+      // B6. Phosphorus (リン) -> Spontaneous Self-Ignition on 3rd click
+      else if (currentType === 'phosphorus' && currentCount >= 3) {
+        cell.type = 'fire';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'fire';
+        playSynthSound('explosion');
+        setTimeout(() => {
+          spawnSparks(x, y, '#bef264', 25, 2.0);
+          showNotification(
+            "🔥 燐の自己熱発火",
+            "リン摩擦による自己熱発火に成功し、激しい炎を噴き出しました！",
+            "info"
+          );
+        }, 0);
+        // Spawn fire cells upwards
+        const upwardOffsets = [
+          { dx: -1, dy: -1 }, { dx: 0, dy: -1 }, { dx: 1, dy: -1 },
+          { dx: 0, dy: -2 }
+        ];
+        upwardOffsets.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            if (next[ny][nx].type === 'empty') {
+              next[ny][nx] = { type: 'fire', age: 0 };
+            }
+          }
+        });
+      }
+      // A1. Steel (鋼鉄) -> Cleanses rust and emits metallic clang on 5th click
+      else if (currentType === 'steel' && currentCount >= 5) {
+        cell.clickCount = 0;
+        playSynthSound('metal');
+        setTimeout(() => {
+          playSynthSound('magic');
+          spawnSparks(x, y, '#e2e8f0', 25, 2.0);
+          showNotification(
+            "🛡️ 鋼鉄の防錆共振",
+            "鋼鉄を叩いた共鳴音で、周囲の錆が完全に浄化されました！",
+            "success"
+          );
+        }, 50);
+        // Cleanse rust in a 3-cell radius (converting rust back to iron or steel)
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'rust') {
+                next[ny][nx] = { type: 'iron', age: 0 };
+              }
+            }
+          }
+        }
+      }
+      // A2. Bronze (青銅) -> Antique bell shimmer on 3rd click
+      else if (currentType === 'bronze' && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('magic');
+        setTimeout(() => {
+          spawnSparks(x, y, '#cd7f32', 20, 1.5);
+          showNotification(
+            "✨ 青銅器の歴史的輝き",
+            "古代文明の金属がきらびやかに研磨され、青銅が美しく輝いています！",
+            "info"
+          );
+        }, 0);
+      }
+      // A3. Silicon (ケイ素) -> Crystallize into semiconductor on 4th click
+      else if (currentType === 'silicon' && currentCount >= 4) {
+        cell.clickCount = 0;
+        playSynthSound('crystal');
+        const r = Math.random();
+        if (r < 0.4) {
+          cell.type = 'semiconductor';
+          cell.age = 0;
+          resultingType = 'semiconductor';
+          setTimeout(() => {
+            playSynthSound('magic');
+            spawnSparks(x, y, '#a5f3fc', 22, 1.8);
+            discoverSubstance('semiconductor', x, y);
+            showNotification(
+              "🧪 ケイ素の結晶配列",
+              "連打による分子配列の整列に成功し、半導体に変化しました！",
+              "success"
+            );
+          }, 0);
+        } else {
+          setTimeout(() => {
+            spawnSparks(x, y, '#e2e8f0', 12, 1.0);
+          }, 0);
+        }
+      }
+      // A4. Computer (コンピューター) -> Cyber overdrive pulse on 4th click
+      else if (currentType === 'computer' && currentCount >= 4) {
+        cell.clickCount = 0;
+        playSynthSound('magic');
+        setTimeout(() => {
+          spawnSparks(x, y, '#22c55e', 24, 1.6);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'shockwave',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#10b981',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 4,
+            maxLife: 30,
+            life: 30
+          });
+          showNotification(
+            "💻 サイバー・オーバークロック",
+            "システムが過熱！データウェーブが周囲を駆け巡り電気を放出します！",
+            "info"
+          );
+        }, 0);
+        // Charge or spawn electricity in adjacent cells
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'empty' && Math.random() < 0.5) {
+                next[ny][nx] = { type: 'electricity', age: 0 };
+              }
+            }
+          }
+        }
+      }
+      // A5. Carbon (炭素) -> Compress into Diamond on 6th click!
+      else if (currentType === 'carbon' && currentCount >= 6) {
+        cell.type = 'diamond';
+        cell.clickCount = 0;
+        cell.age = 0;
+        resultingType = 'diamond';
+        playSynthSound('explosion');
+        setTimeout(() => {
+          playSynthSound('magic');
+          spawnSparks(x, y, '#38bdf8', 35, 2.5);
+          discoverSubstance('diamond', x, y);
+          showNotification(
+            "💎 炭素の超高圧圧縮",
+            "連打による莫大な圧力により、黒い炭素が美しいダイヤモンドに昇華しました！",
+            "success"
+          );
+        }, 0);
+      }
+      // A6. Salt (塩) -> Dissolve in adjacent water
+      else if (currentType === 'salt') {
+        cell.clickCount = 0;
+        // Search if water is adjacent
+        let nearWater = false;
+        const adj = [
+          { dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 }
+        ];
+        adj.forEach(({ dx, dy }) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+            if (next[ny][nx].type === 'water') {
+              nearWater = true;
+            }
+          }
+        });
+        if (nearWater) {
+          cell.type = 'empty';
+          resultingType = 'empty';
+          playSynthSound('bubble');
+          setTimeout(() => {
+            spawnSparks(x, y, '#ffffff', 18, 1.4);
+            showNotification(
+              "🧂 塩の急速溶解",
+              "塩が隣接する水に一瞬で溶け出し、ミネラルを放出しました！",
+              "info"
+            );
+          }, 0);
+        }
+      }
+      // A7. Ammonia (アンモニア) / Fertilizer (肥料) -> Instant Organic Growth on 3rd click
+      else if (['ammonia', 'fertilizer'].includes(currentType) && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('plant');
+        setTimeout(() => {
+          playSynthSound('magic');
+          spawnSparks(x, y, '#84cc16', 22, 1.8);
+          showNotification(
+            "🌱 豊潤なる有機成長パルス",
+            "アンモニア/肥料が周囲の生命体にエネルギーを注ぎ、大増殖させます！",
+            "success"
+          );
+        }, 0);
+        // Mutate empty space or algae into plants, bacteria, or yeast in 3-cell radius
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'empty' && Math.random() < 0.4) {
+                next[ny][nx] = { type: 'plant', age: 0 };
+              } else if (next[ny][nx].type === 'algae') {
+                next[ny][nx] = { type: 'plant', age: 0 };
+              }
+            }
+          }
+        }
+      }
+      // A8. Titanium (チタン) -> Cyber forcefield block on 4th click
+      else if (currentType === 'titanium' && currentCount >= 4) {
+        cell.clickCount = 0;
+        playSynthSound('magic');
+        setTimeout(() => {
+          spawnSparks(x, y, '#6366f1', 25, 2.0);
+          effectsRef.current.push({
+            id: Math.random().toString(),
+            type: 'ring',
+            x: x * CELL_SIZE + CELL_SIZE / 2,
+            y: y * CELL_SIZE + CELL_SIZE / 2,
+            color: '#818cf8',
+            vx: 0,
+            vy: 0,
+            alpha: 1.0,
+            size: 3,
+            maxLife: 25,
+            life: 25
+          });
+          showNotification(
+            "🛡️ チタニウム・バリケード",
+            "チタンの極超電磁バリアが作動し、周囲の不要な物質をクリアにしました！",
+            "info"
+          );
+        }, 0);
+        // Clear hot or dangerous elements nearby
+        for (let dy = -2; dy <= 2; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (['fire', 'lava', 'acid', 'virus'].includes(next[ny][nx].type)) {
+                next[ny][nx] = { type: 'empty', age: 0 };
+              }
+            }
+          }
+        }
+      }
+      // A9. Sulfur (硫黄) -> Chemical sulfurous eruption on 3rd click
+      else if (currentType === 'sulfur' && currentCount >= 3) {
+        cell.clickCount = 0;
+        playSynthSound('electric');
+        let hasHeat = false;
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (['fire', 'lava'].includes(next[ny][nx].type)) {
+                hasHeat = true;
+              }
+            }
+          }
+        }
+        if (hasHeat) {
+          playSynthSound('explosion');
+          setTimeout(() => {
+            spawnSparks(x, y, '#fbbf24', 25, 2.2);
+            showNotification(
+              "🌋 硫黄火山の化学噴火",
+              "硫黄が熱源に反応し、激しい化学爆発と共に火を吹き上げました！",
+              "success"
+            );
+          }, 0);
+          // Spawn multiple fire cells upward
+          for (let i = 0; i < 5; i++) {
+            const rx = x + Math.floor(Math.random() * 5) - 2;
+            const ry = y - Math.floor(Math.random() * 4) - 1;
+            if (rx >= 0 && rx < colsCount && ry >= 0 && ry < ROWS) {
+              if (next[ry][rx].type === 'empty') {
+                next[ry][rx] = { type: 'fire', age: 0 };
+              }
+            }
+          }
+        } else {
+          setTimeout(() => {
+            spawnSparks(x, y, '#facc15', 12, 1.0);
+          }, 0);
+        }
+      }
+      // A10. Nitrogen (窒素) -> Cryogenic freeze burst on 4th click
+      else if (currentType === 'nitrogen' && currentCount >= 4) {
+        cell.clickCount = 0;
+        playSynthSound('crystal');
+        setTimeout(() => {
+          playSynthSound('magic');
+          spawnSparks(x, y, '#93c5fd', 25, 2.0);
+          showNotification(
+            "❄️ 液体窒素の極低温爆発",
+            "瞬間的に極低温の冷却ガスが噴出し、周囲の熱源をすべて凍結しました！",
+            "success"
+          );
+        }, 0);
+        // Cool down materials in 3-cell radius
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              const target = next[ny][nx].type;
+              if (target === 'lava') {
+                next[ny][nx] = { type: 'stone', age: 0 };
+              } else if (target === 'fire') {
+                next[ny][nx] = { type: 'empty', age: 0 };
+              } else if (target === 'steam') {
+                next[ny][nx] = { type: 'water', age: 0 };
+              } else if (target === 'water') {
+                next[ny][nx] = { type: 'stone', age: 0 }; // frozen into ice substitute stone
+              }
+            }
+          }
+        }
+      }
+      // A11. Universe (宇宙) -> Big Bang Cosmic Seed on 5th click
+      else if (currentType === 'universe' && currentCount >= 5) {
+        cell.clickCount = 0;
+        playSynthSound('magic');
+        setTimeout(() => {
+          playSynthSound('cosmic');
+          setScreenFlashColor('rgba(168, 85, 247, 0.25)');
+          setTimeout(() => setScreenFlashColor(null), 500);
+          spawnSparks(x, y, '#a855f7', 40, 3.0);
+          showNotification(
+            "🌌 ビッグバンの特異点連打",
+            "宇宙の核を限界まで叩いたことでミニ・ビッグバンが起こり、新たな天体の種が誕生しました！",
+            "success"
+          );
+        }, 0);
+        // Spawn cosmic celestial bodies in empty slots nearby
+        const celestialBodies = ['star', 'planet', 'black_hole', 'ufo'];
+        for (let dy = -3; dy <= 3; dy++) {
+          for (let dx = -3; dx <= 3; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+              if (next[ny][nx].type === 'empty' && Math.random() < 0.15) {
+                const randomBody = celestialBodies[Math.floor(Math.random() * celestialBodies.length)];
+                next[ny][nx] = { type: randomBody, age: 0 };
+                discoverSubstance(randomBody, nx, ny);
+              }
+            }
+          }
+        }
+      }
+
+      // --- EXISTING GIMMICKS (INTEGRATED & ENHANCED WITH SOUND) ---
+
       // 1. Stone (石) -> Gravel (砂利) on 5th click
-      if (currentType === 'stone' && currentCount >= 5) {
+      else if (currentType === 'stone' && currentCount >= 5) {
         cell.type = 'gravel';
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'gravel';
+        playSynthSound('metal');
         setTimeout(() => {
           discoverSubstance('gravel', x, y);
         }, 0);
@@ -1235,6 +2079,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'sand';
+        playSynthSound('metal');
         setTimeout(() => {
           discoverSubstance('sand', x, y);
         }, 0);
@@ -1242,6 +2087,7 @@ export default function App() {
       // 3. Water (水) -> Splash particles and spread to empty adjacent cells on 3rd click
       else if (currentType === 'water' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('water');
         const neighbors = [
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
@@ -1268,6 +2114,7 @@ export default function App() {
       // 4. Fire (火) -> Flare/explosion and expand to empty/flammable neighbors on 3rd click
       else if (currentType === 'fire' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('electric');
         const neighbors = [
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
@@ -1289,6 +2136,7 @@ export default function App() {
       }
       // 5. Soil (土) -> Secrets unearthing (Sand/Clay/Fossil) on 5th click
       else if (currentType === 'soil' && currentCount >= 5) {
+        playSynthSound('plant');
         const rand = Math.random();
         let newType = 'sand';
         if (rand < 0.1) {
@@ -1312,6 +2160,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'sand';
+        playSynthSound('crystal');
         setTimeout(() => {
           spawnSparks(x, y, '#22d3ee', 25, 2.2);
           discoverSubstance('sand', x, y);
@@ -1319,6 +2168,7 @@ export default function App() {
       }
       // 7. Lava (溶岩) -> Cools into Stone (石) or Obsidian (黒曜石) on 4th click
       else if (currentType === 'lava' && currentCount >= 4) {
+        playSynthSound('electric');
         const newType = Math.random() < 0.25 ? 'obsidian' : 'stone';
         cell.type = newType;
         cell.clickCount = 0;
@@ -1332,6 +2182,7 @@ export default function App() {
       // 8. Plant (植物) -> Grow upwards on 3rd click
       else if (currentType === 'plant' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('plant');
         if (y > 0 && next[y - 1][x].type === 'empty') {
           next[y - 1][x] = { type: 'plant', age: 0 };
           setTimeout(() => {
@@ -1342,6 +2193,7 @@ export default function App() {
       // 9. UFO -> Teleport to random spot on click
       else if (currentType === 'ufo') {
         cell.clickCount = 0;
+        playSynthSound('cosmic');
         const emptyCells: { cx: number; cy: number }[] = [];
         for (let r = 0; r < ROWS; r++) {
           for (let c = 0; c < colsCount; c++) {
@@ -1364,6 +2216,7 @@ export default function App() {
       // 10. Bacteria/Cell -> Divide on 3rd click
       else if ((currentType === 'bacteria' || currentType === 'cell') && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('plant');
         const neighbors = [
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
@@ -1387,6 +2240,7 @@ export default function App() {
       else if ((currentType === 'dynamite' || currentType === 'gunpowder') && currentCount >= 3) {
         cell.type = 'empty';
         resultingType = 'empty';
+        playSynthSound('explosion');
         for (let dy = -1; dy <= 1; dy++) {
           for (let dx = -1; dx <= 1; dx++) {
             const nx = x + dx;
@@ -1410,6 +2264,7 @@ export default function App() {
       // 12. Electricity (電気) -> High frequency shockwave on 3rd click!
       else if (currentType === 'electricity' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('electric');
         setTimeout(() => {
           spawnSparks(x, y, '#facc15', 25, 2.0);
           effectsRef.current.push({
@@ -1447,6 +2302,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'water';
+        playSynthSound('water');
         setTimeout(() => {
           spawnSparks(x, y, '#3b82f6', 15, 1.2);
         }, 0);
@@ -1457,6 +2313,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'glass';
+        playSynthSound('crystal');
         setTimeout(() => {
           spawnSparks(x, y, '#a855f7', 20, 1.5);
           discoverSubstance('glass', x, y);
@@ -1466,6 +2323,7 @@ export default function App() {
       else if (['oxygen', 'hydrogen', 'carbon_dioxide'].includes(currentType) && currentCount >= 3) {
         cell.type = 'empty';
         resultingType = 'empty';
+        playSynthSound('bubble');
         const popColor = currentType === 'oxygen' ? '#38bdf8' : (currentType === 'hydrogen' ? '#22d3ee' : '#94a3b8');
         setTimeout(() => {
           spawnSparks(x, y, popColor, 18, 1.5);
@@ -1487,6 +2345,7 @@ export default function App() {
       // 16. Metal (金属) -> Magnetize or polish sparkle!
       else if (currentType === 'metal' && currentCount >= 5) {
         cell.clickCount = 0;
+        playSynthSound('metal');
         // Search if any magnet is nearby (within 3 cells)
         let magnetNearby = false;
         for (let dy = -3; dy <= 3; dy++) {
@@ -1506,6 +2365,7 @@ export default function App() {
           cell.age = 0;
           resultingType = 'magnet';
           setTimeout(() => {
+            playSynthSound('magic');
             spawnSparks(x, y, '#f43f5e', 18, 1.5);
             discoverSubstance('magnet', x, y);
           }, 0);
@@ -1518,6 +2378,7 @@ export default function App() {
       // 17. Magnet (磁石) -> Drag nearby metallic items on click!
       else if (currentType === 'magnet') {
         cell.clickCount = 0;
+        playSynthSound('metal');
         setTimeout(() => {
           effectsRef.current.push({
             id: Math.random().toString(),
@@ -1559,6 +2420,7 @@ export default function App() {
       // 18. Yeast (酵母) -> Fermentation Swell on 3rd click
       else if (currentType === 'yeast' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('plant');
         const neighbors = [
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
@@ -1581,6 +2443,7 @@ export default function App() {
       // 19. Acid (酸) -> Corrosive splash on 3rd click
       else if (currentType === 'acid' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('water');
         setTimeout(() => {
           spawnSparks(x, y, '#a3e635', 20, 1.8);
         }, 0);
@@ -1608,6 +2471,7 @@ export default function App() {
       }
       // 20. Fossil (化石) -> Prehistoric resurrection on 5th click
       else if (currentType === 'fossil' && currentCount >= 5) {
+        playSynthSound('plant');
         const outcomes = ['life', 'stone', 'diamond', 'carbon'];
         const chosen = outcomes[Math.floor(Math.random() * outcomes.length)];
         cell.type = chosen;
@@ -1615,6 +2479,7 @@ export default function App() {
         cell.age = 0;
         resultingType = chosen;
         setTimeout(() => {
+          playSynthSound('magic');
           spawnSparks(x, y, '#a7f3d0', 25, 2.0);
           discoverSubstance(chosen, x, y);
         }, 0);
@@ -1622,6 +2487,7 @@ export default function App() {
       // 21. Gold (金) -> Golden Radiance on 3rd click
       else if (currentType === 'gold' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('magic');
         setTimeout(() => {
           spawnSparks(x, y, '#eab308', 30, 2.2);
           effectsRef.current.push({
@@ -1642,8 +2508,10 @@ export default function App() {
       // 22. Diamond (ダイヤモンド) -> Prismatic burst on 5th click!
       else if (currentType === 'diamond' && currentCount >= 5) {
         cell.clickCount = 0;
+        playSynthSound('crystal');
         const rainbowColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#a855f7'];
         setTimeout(() => {
+          playSynthSound('magic');
           rainbowColors.forEach((rainbowCol, i) => {
             const angle = (i / rainbowColors.length) * Math.PI * 2;
             const speed = 2.5;
@@ -1669,6 +2537,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'black_hole';
+        playSynthSound('explosion');
         setTimeout(() => {
           discoverSubstance('black_hole', x, y);
           setScreenFlashColor('rgba(251, 146, 60, 0.3)');
@@ -1702,6 +2571,7 @@ export default function App() {
       // 24. Black Hole (ブラックホール) -> Suction on click!
       else if (currentType === 'black_hole') {
         cell.clickCount = 0;
+        playSynthSound('cosmic');
         setTimeout(() => {
           effectsRef.current.push({
             id: Math.random().toString(),
@@ -1737,6 +2607,7 @@ export default function App() {
       // 25. AI (人工知能) -> Super intelligence wave on 3rd click!
       else if (currentType === 'ai' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('magic');
         setTimeout(() => {
           spawnSparks(x, y, '#60a5fa', 20, 1.5);
           effectsRef.current.push({
@@ -1757,6 +2628,7 @@ export default function App() {
       // 26. Laser (レーザー) -> Beam fire down on click!
       else if (currentType === 'laser') {
         cell.clickCount = 0;
+        playSynthSound('electric');
         setTimeout(() => {
           spawnSparks(x, y, '#f43f5e', 15, 2.0);
         }, 0);
@@ -1778,6 +2650,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'lead';
+        playSynthSound('explosion');
         setTimeout(() => {
           discoverSubstance('lead', x, y);
           setScreenFlashColor('rgba(34, 197, 94, 0.3)');
@@ -1817,6 +2690,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'fire';
+        playSynthSound('electric');
         setTimeout(() => {
           spawnSparks(x, y, '#ef4444', 18, 1.6);
         }, 0);
@@ -1827,6 +2701,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'hydrocarbon';
+        playSynthSound('plant');
         setTimeout(() => {
           spawnSparks(x, y, '#1e293b', 12, 1.0);
           discoverSubstance('hydrocarbon', x, y);
@@ -1838,6 +2713,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'soil';
+        playSynthSound('plant');
         setTimeout(() => {
           spawnSparks(x, y, '#7c2d12', 12, 1.1);
         }, 0);
@@ -1845,6 +2721,7 @@ export default function App() {
       // 31. Virus (ウイルス) -> Infection spread on 3rd click
       else if (currentType === 'virus' && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('plant');
         const neighbors = [
           { dx: -1, dy: 0 },
           { dx: 1, dy: 0 },
@@ -1871,6 +2748,7 @@ export default function App() {
         cell.clickCount = 0;
         cell.age = 0;
         resultingType = 'plant';
+        playSynthSound('plant');
         setTimeout(() => {
           spawnSparks(x, y, '#4ade80', 12, 1.2);
           discoverSubstance('plant', x, y);
@@ -1879,6 +2757,7 @@ export default function App() {
       // 33. Helium (ヘリウム) / Neon (ネオン) / Argon (アルゴン) -> Neon plasma light ring on 3rd click
       else if (['helium', 'neon', 'argon'].includes(currentType) && currentCount >= 3) {
         cell.clickCount = 0;
+        playSynthSound('crystal');
         const neonColor = currentType === 'helium' ? '#f472b6' : (currentType === 'neon' ? '#fb7185' : '#c084fc');
         setTimeout(() => {
           spawnSparks(x, y, neonColor, 15, 1.5);
@@ -1900,6 +2779,7 @@ export default function App() {
       // 34. Life (生命) -> Cure nearby viruses and enrich soil on click!
       else if (currentType === 'life') {
         cell.clickCount = 0;
+        playSynthSound('magic');
         setTimeout(() => {
           spawnSparks(x, y, '#10b981', 18, 1.3);
           effectsRef.current.push({
@@ -2021,15 +2901,100 @@ export default function App() {
         setSelectedCell({ x: toX, y: toY });
       } else {
         // Reaction checking (Drop to synthesize)
-        const reaction = getReaction(movingType, targetCell.type);
-        if (reaction) {
+        const matchingReactions = getReactions(movingType, targetCell.type);
+        if (matchingReactions.length > 0) {
+          const reaction = matchingReactions[Math.floor(Math.random() * matchingReactions.length)];
           const prod1 = reaction.products[0];
           const prod2 = reaction.products[1] || 'empty';
 
           setGrid(prev => {
             const next = prev.map(row => row.map(c => ({ ...c })));
+            const currentCols = next[0]?.length || 32;
+
+            // Clear the drag source (since it moved)
+            if (fromY !== undefined && fromX !== undefined) {
+              next[fromY][fromX] = { type: 'empty', age: 0 };
+            }
+
+            // Set the first product at the drop destination
             next[toY][toX] = { type: prod1, age: 0 };
-            next[fromY][fromX] = { type: prod2, age: 0 };
+
+            // Try to place second product in adjacent empty spots of destination
+            if (prod2 !== 'empty') {
+              let prod2Placed = false;
+              
+              // 1. Try cardinal adjacent cells of destination
+              const cardinal = [
+                { dx: 0, dy: -1 },
+                { dx: 0, dy: 1 },
+                { dx: -1, dy: 0 },
+                { dx: 1, dy: 0 }
+              ];
+              for (const { dx, dy } of cardinal) {
+                const nx = toX + dx;
+                const ny = toY + dy;
+                if (nx >= 0 && nx < currentCols && ny >= 0 && ny < ROWS) {
+                  if (next[ny][nx].type === 'empty') {
+                    next[ny][nx] = { type: prod2, age: 0 };
+                    prod2Placed = true;
+                    break;
+                  }
+                }
+              }
+
+              // 2. Try the drag source if empty
+              if (!prod2Placed && fromY !== undefined && fromX !== undefined) {
+                if (next[fromY][fromX].type === 'empty') {
+                  next[fromY][fromX] = { type: prod2, age: 0 };
+                  prod2Placed = true;
+                }
+              }
+
+              // 3. Try diagonal adjacent cells of destination
+              if (!prod2Placed) {
+                const diagonals = [
+                  { dx: -1, dy: -1 },
+                  { dx: 1, dy: -1 },
+                  { dx: -1, dy: 1 },
+                  { dx: 1, dy: 1 }
+                ];
+                for (const { dx, dy } of diagonals) {
+                  const nx = toX + dx;
+                  const ny = toY + dy;
+                  if (nx >= 0 && nx < currentCols && ny >= 0 && ny < ROWS) {
+                    if (next[ny][nx].type === 'empty') {
+                      next[ny][nx] = { type: prod2, age: 0 };
+                      prod2Placed = true;
+                      break;
+                    }
+                  }
+                }
+              }
+
+              // 4. Try 2-cell radius from destination
+              if (!prod2Placed) {
+                for (let dy = -2; dy <= 2; dy++) {
+                  for (let dx = -2; dx <= 2; dx++) {
+                    if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) continue;
+                    const nx = toX + dx;
+                    const ny = toY + dy;
+                    if (nx >= 0 && nx < currentCols && ny >= 0 && ny < ROWS) {
+                      if (next[ny][nx].type === 'empty') {
+                        next[ny][nx] = { type: prod2, age: 0 };
+                        prod2Placed = true;
+                        break;
+                      }
+                    }
+                  }
+                  if (prod2Placed) break;
+                }
+              }
+
+              // 5. Fallback: overwrite the drag source if available
+              if (!prod2Placed && fromY !== undefined && fromX !== undefined) {
+                next[fromY][fromX] = { type: prod2, age: 0 };
+              }
+            }
             return next;
           });
           setSelectedCell({ x: toX, y: toY });
@@ -2238,11 +3203,77 @@ export default function App() {
           if (currentCell.type === 'empty') {
             next[cy][cx] = { type: substanceId, age: 0 };
           } else {
-            const reaction = getReaction(substanceId, currentCell.type);
-            if (reaction) {
+            const matchingReactions = getReactions(substanceId, currentCell.type);
+            if (matchingReactions.length > 0) {
+              const reaction = matchingReactions[Math.floor(Math.random() * matchingReactions.length)];
               const prod1 = reaction.products[0];
               const prod2 = reaction.products[1] || 'empty';
               next[cy][cx] = { type: prod1, age: 0 };
+              
+              // Place second product in adjacent empty slot if present
+              if (prod2 !== 'empty') {
+                let prod2Placed = false;
+                
+                // 1. Cardinal adjacent cells
+                const cardinal = [
+                  { dx: 0, dy: -1 }, // top
+                  { dx: 0, dy: 1 },  // bottom
+                  { dx: -1, dy: 0 }, // left
+                  { dx: 1, dy: 0 }   // right
+                ];
+                for (const { dx, dy } of cardinal) {
+                  const nx = cx + dx;
+                  const ny = cy + dy;
+                  if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+                    if (next[ny][nx].type === 'empty') {
+                      next[ny][nx] = { type: prod2, age: 0 };
+                      prod2Placed = true;
+                      break;
+                    }
+                  }
+                }
+
+                // 2. Diagonal adjacent cells
+                if (!prod2Placed) {
+                  const diagonals = [
+                    { dx: -1, dy: -1 },
+                    { dx: 1, dy: -1 },
+                    { dx: -1, dy: 1 },
+                    { dx: 1, dy: 1 }
+                  ];
+                  for (const { dx, dy } of diagonals) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+                      if (next[ny][nx].type === 'empty') {
+                        next[ny][nx] = { type: prod2, age: 0 };
+                        prod2Placed = true;
+                        break;
+                      }
+                    }
+                  }
+                }
+
+                // 3. 2-cell radius from collision
+                if (!prod2Placed) {
+                  for (let dy = -2; dy <= 2; dy++) {
+                    for (let dx = -2; dx <= 2; dx++) {
+                      if (Math.abs(dx) <= 1 && Math.abs(dy) <= 1) continue;
+                      const nx = cx + dx;
+                      const ny = cy + dy;
+                      if (nx >= 0 && nx < colsCount && ny >= 0 && ny < ROWS) {
+                        if (next[ny][nx].type === 'empty') {
+                          next[ny][nx] = { type: prod2, age: 0 };
+                          prod2Placed = true;
+                          break;
+                        }
+                      }
+                    }
+                    if (prod2Placed) break;
+                  }
+                }
+              }
+              
               triggeredReactions.push({ reaction, prod1, prod2 });
             }
           }
@@ -2739,204 +3770,262 @@ export default function App() {
             </button>
           </div>
 
-          {/* TAB CONTENT SPACE */}
-          <div className="flex-1 bg-white border border-slate-200 rounded-xl p-5 overflow-y-auto flex flex-col gap-4 shadow-sm relative text-slate-800" id="tab_content">
-            
-            {/* DRAGGING SYNTHESIS PREVIEW */}
-            {draggedCell && (
-              <div className="flex flex-col gap-4 animate-fade-in" id="drag_preview_panel">
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-col gap-4 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-tr from-slate-100 to-yellow-500/10 blur-xl pointer-events-none"></div>
-                  
-                  <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-yellow-500 animate-pulse" />
-                    <h3 className="text-sm font-bold text-slate-800 tracking-wider uppercase font-mono">
-                      ドラッグ合成プレビュー
-                    </h3>
+          {/* SYNTHESIS PREVIEW PANEL WHEN DRAGGING */}
+          {draggedCell && (
+            <div className="flex flex-col gap-3 bg-slate-50 border border-slate-200 rounded-xl p-4 h-full overflow-y-auto" id="synthesis_preview_panel">
+              <h3 className="font-mono text-sm font-bold text-slate-800 flex items-center gap-1.5 border-b border-slate-200 pb-2">
+                <Sparkles className="w-4 h-4 text-emerald-500" />
+                <span>合成シミュレーター</span>
+              </h3>
+
+              {/* 1. DRAG SOURCE */}
+              <div className="flex flex-col gap-2 bg-white/80 p-3 rounded-lg border border-slate-100 shadow-sm">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                  持ち上げている物質
+                </span>
+                <div className="flex items-center gap-3">
+                  <div 
+                    className="w-8 h-8 rounded-lg border border-slate-200 shadow-inner flex items-center justify-center font-mono font-bold shrink-0 text-sm text-white"
+                    style={{ backgroundColor: SUBSTANCES.find(s => s.id === draggedCell.type)?.color }}
+                  >
+                    {SUBSTANCES.find(s => s.id === draggedCell.type)?.nameEn.slice(0, 2)}
                   </div>
-
-                  {/* 1. SOURCE SUBSTANCE */}
-                  {(() => {
-                    const sourceSub = SUBSTANCES.find(s => s.id === draggedCell.type);
-                    if (!sourceSub) return null;
-                    return (
-                      <div className="flex flex-col gap-2 bg-white/85 p-3 rounded-lg border border-slate-100 shadow-sm">
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                          持ち上げている物質
-                        </span>
-                        <div className="flex items-center gap-3">
-                          <div 
-                            className="w-8 h-8 rounded-lg border border-slate-200 shadow-inner flex items-center justify-center font-mono font-bold shrink-0 text-sm"
-                            style={{ 
-                              backgroundColor: sourceSub.color,
-                              color: ['white', 'yellow', 'cyan', 'pink'].some(c => sourceSub.color.toLowerCase().includes(c)) ? '#0f172a' : '#ffffff'
-                            }}
-                          >
-                            {sourceSub.nameEn.slice(0, 2)}
-                          </div>
-                          <div>
-                            <span className="font-mono font-bold text-slate-900 block">{sourceSub.nameEn}</span>
-                            <span className="text-xs text-slate-500 font-bold block">{sourceSub.nameJa}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Connecting Icon */}
-                  <div className="flex justify-center my-0.5">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm font-sans font-bold">
-                      ↓
-                    </div>
+                  <div>
+                    <span className="font-mono font-bold text-slate-900 block">
+                      {SUBSTANCES.find(s => s.id === draggedCell.type)?.nameEn}
+                    </span>
+                    <span className="text-xs text-slate-500 font-bold block">
+                      {SUBSTANCES.find(s => s.id === draggedCell.type)?.nameJa}
+                    </span>
                   </div>
-
-                  {/* 2. TARGET CELL SUBSTANCE */}
-                  {(() => {
-                    const targetCell = dragCurrentCell ? grid[dragCurrentCell.y]?.[dragCurrentCell.x] : null;
-                    const targetSub = targetCell && targetCell.type !== 'empty' ? SUBSTANCES.find(s => s.id === targetCell.type) : null;
-                    
-                    return (
-                      <div className="flex flex-col gap-2 bg-white/80 p-3 rounded-lg border border-slate-100 shadow-sm">
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                          ドロップ先のセル ({dragCurrentCell ? `X: ${dragCurrentCell.x}, Y: ${dragCurrentCell.y}` : '-'})
-                        </span>
-                        {targetSub ? (
-                          <div className="flex items-center gap-3">
-                            <div 
-                              className="w-8 h-8 rounded-lg border border-slate-200 shadow-inner flex items-center justify-center font-mono font-bold shrink-0 text-sm"
-                              style={{ 
-                                backgroundColor: targetSub.color,
-                                color: ['white', 'yellow', 'cyan', 'pink'].some(c => targetSub.color.toLowerCase().includes(c)) ? '#0f172a' : '#ffffff'
-                              }}
-                            >
-                              {targetSub.nameEn.slice(0, 2)}
-                            </div>
-                            <div>
-                              <span className="font-mono font-bold text-slate-900 block">{targetSub.nameEn}</span>
-                              <span className="text-xs text-slate-500 font-bold block">{targetSub.nameJa}</span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-slate-400 italic text-xs py-1">
-                            <span className="w-5 h-5 rounded border border-dashed border-slate-300 bg-slate-50/50 flex items-center justify-center font-sans font-bold text-[10px]">Ø</span>
-                            <span>空気 / 空きスペース</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-
-                  {/* Connecting Arrow */}
-                  <div className="flex justify-center my-0.5">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm font-sans font-bold">
-                      ➔
-                    </div>
-                  </div>
-
-                  {/* 3. DROP RESULT */}
-                  {(() => {
-                    const targetCell = dragCurrentCell ? grid[dragCurrentCell.y]?.[dragCurrentCell.x] : null;
-                    const targetType = targetCell ? targetCell.type : 'empty';
-                    const isTargetEmpty = targetType === 'empty';
-                    
-                    if (isTargetEmpty) {
-                      return (
-                        <div className="flex flex-col gap-1.5 p-3.5 bg-slate-100/70 border border-slate-200 rounded-lg shadow-sm">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
-                            合成結果
-                          </span>
-                          <div className="font-mono font-bold text-slate-500 text-lg tracking-wide py-0.5">
-                            -
-                          </div>
-                          <p className="text-[11px] text-slate-500 leading-relaxed font-mono">
-                            空きスペースです。ドロップすると、持ち上げている物質がここに移動します。
-                          </p>
-                        </div>
-                      );
-                    }
-                    
-                    const reaction = getReaction(draggedCell.type, targetType);
-                    if (reaction) {
-                      const p1 = reaction.products[0];
-                      const p2 = reaction.products[1] || 'empty';
-                      const p1Sub = SUBSTANCES.find(s => s.id === p1);
-                      const p2Sub = p2 !== 'empty' ? SUBSTANCES.find(s => s.id === p2) : null;
-                      
-                      return (
-                        <div className="flex flex-col gap-2 p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-600 font-bold">
-                              合成結果
-                            </span>
-                            <span className="text-[10px] bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                              ✨ 合成可能
-                            </span>
-                          </div>
-                          
-                          <div className="flex flex-col gap-1.5 mt-1">
-                            <span className="text-xs text-emerald-800 font-bold">新しい生成物:</span>
-                            <div className="flex flex-col gap-2">
-                              {p1Sub && (
-                                <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded border border-emerald-100 shadow-sm">
-                                  <div 
-                                    className="w-6 h-6 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-xs text-white"
-                                    style={{ backgroundColor: p1Sub.color }}
-                                  >
-                                    {p1Sub.nameEn.slice(0, 2)}
-                                  </div>
-                                  <div>
-                                    <span className="font-mono text-xs font-bold text-slate-800 block leading-tight">{p1Sub.nameEn}</span>
-                                    <span className="text-[10px] text-slate-500 block leading-none">{p1Sub.nameJa}</span>
-                                  </div>
-                                </div>
-                              )}
-                              {p2Sub && (
-                                <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded border border-emerald-100 shadow-sm">
-                                  <div 
-                                    className="w-6 h-6 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-xs text-white"
-                                    style={{ backgroundColor: p2Sub.color }}
-                                  >
-                                    {p2Sub.nameEn.slice(0, 2)}
-                                  </div>
-                                  <div>
-                                    <span className="font-mono text-xs font-bold text-slate-800 block leading-tight">{p2Sub.nameEn}</span>
-                                    <span className="text-[10px] text-slate-500 block leading-none">{p2Sub.nameJa}</span>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                          
-                          <p className="text-[10px] text-emerald-700/80 mt-1 leading-relaxed border-t border-emerald-100 pt-1.5 font-mono">
-                            {reaction.description}
-                          </p>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="flex flex-col gap-1.5 p-3.5 bg-rose-50 border border-rose-200 rounded-lg shadow-sm">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono uppercase tracking-wider text-rose-500 font-bold">
-                              合成結果
-                            </span>
-                            <span className="text-[10px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
-                              ❌ 合成不可
-                            </span>
-                          </div>
-                          <div className="font-mono font-bold text-rose-600 text-xs tracking-wide py-0.5">
-                            置き換えなし (不反応)
-                          </div>
-                          <p className="text-[10px] text-rose-500 leading-relaxed font-mono">
-                            この2つの物質を組み合わせても反応は発生しません。不反応のため、元のピクセルはそのまま保護されます。
-                          </p>
-                        </div>
-                      );
-                    }
-                  })()}
-
                 </div>
               </div>
-            )}
+
+              {/* Connecting Arrow */}
+              <div className="flex justify-center my-0.5">
+                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm font-sans font-bold">
+                  ↓
+                </div>
+              </div>
+
+              {/* 2. TARGET CELL SUBSTANCE */}
+              {(() => {
+                const targetCell = dragCurrentCell ? grid[dragCurrentCell.y]?.[dragCurrentCell.x] : null;
+                const targetSub = targetCell && targetCell.type !== 'empty' ? SUBSTANCES.find(s => s.id === targetCell.type) : null;
+                
+                return (
+                  <div className="flex flex-col gap-2 bg-white/80 p-3 rounded-lg border border-slate-100 shadow-sm">
+                    <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                      ドロップ先のセル ({dragCurrentCell ? `X: ${dragCurrentCell.x}, Y: ${dragCurrentCell.y}` : '-'})
+                    </span>
+                    {targetSub ? (
+                      <div className="flex items-center gap-3">
+                        <div 
+                          className="w-8 h-8 rounded-lg border border-slate-200 shadow-inner flex items-center justify-center font-mono font-bold shrink-0 text-sm"
+                          style={{ 
+                            backgroundColor: targetSub.color,
+                            color: ['white', 'yellow', 'cyan', 'pink'].some(c => targetSub.color.toLowerCase().includes(c)) ? '#0f172a' : '#ffffff'
+                          }}
+                        >
+                          {targetSub.nameEn.slice(0, 2)}
+                        </div>
+                        <div>
+                          <span className="font-mono font-bold text-slate-900 block">{targetSub.nameEn}</span>
+                          <span className="text-xs text-slate-500 font-bold block">{targetSub.nameJa}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic text-xs py-1">
+                        <span className="w-5 h-5 rounded border border-dashed border-slate-300 bg-slate-50/50 flex items-center justify-center font-sans font-bold text-[10px]">Ø</span>
+                        <span>空気 / 空きスペース</span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Connecting Arrow */}
+              <div className="flex justify-center my-0.5">
+                <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 shadow-sm font-sans font-bold">
+                  ↓
+                </div>
+              </div>
+
+              {/* 3. DROP RESULT */}
+              {(() => {
+                const targetCell = dragCurrentCell ? grid[dragCurrentCell.y]?.[dragCurrentCell.x] : null;
+                const targetType = targetCell ? targetCell.type : 'empty';
+                const isTargetEmpty = targetType === 'empty';
+                
+                if (isTargetEmpty) {
+                  return (
+                    <div className="flex flex-col gap-1.5 p-3.5 bg-slate-100/70 border border-slate-200 rounded-lg shadow-sm">
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold">
+                        合成結果
+                      </span>
+                      <div className="font-mono font-bold text-slate-500 text-lg tracking-wide py-0.5">
+                        -
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-relaxed font-mono">
+                        空きスペースです。ドロップすると、持ち上げている物質がここに移動します。
+                      </p>
+                    </div>
+                  );
+                }
+                
+                const matchingReactions = getReactions(draggedCell.type, targetType);
+                if (matchingReactions.length > 0) {
+                  if (matchingReactions.length === 1) {
+                    const reaction = matchingReactions[0];
+                    const p1 = reaction.products[0];
+                    const p2 = reaction.products[1] || 'empty';
+                    const p1Sub = SUBSTANCES.find(s => s.id === p1);
+                    const p2Sub = p2 !== 'empty' ? SUBSTANCES.find(s => s.id === p2) : null;
+                    
+                    return (
+                      <div className="flex flex-col gap-2 p-3.5 bg-emerald-50 border border-emerald-200 rounded-lg shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-emerald-600 font-bold">
+                            合成結果
+                          </span>
+                          <span className="text-[10px] bg-emerald-500 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                            ✨ 合成可能
+                          </span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-1.5 mt-1">
+                          <span className="text-xs text-emerald-800 font-bold">新しい生成物:</span>
+                          <div className="flex flex-col gap-2">
+                            {p1Sub && (
+                              <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded border border-emerald-100 shadow-sm">
+                                <div 
+                                  className="w-6 h-6 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-xs text-white"
+                                  style={{ backgroundColor: p1Sub.color }}
+                                >
+                                  {p1Sub.nameEn.slice(0, 2)}
+                                </div>
+                                <div>
+                                  <span className="font-mono text-xs font-bold text-slate-800 block leading-tight">{p1Sub.nameEn}</span>
+                                  <span className="text-[10px] text-slate-500 block leading-none">{p1Sub.nameJa}</span>
+                                </div>
+                              </div>
+                            )}
+                            {p2Sub && (
+                              <div className="flex items-center gap-2 bg-white/90 p-1.5 rounded border border-emerald-100 shadow-sm">
+                                <div 
+                                  className="w-6 h-6 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-xs text-white"
+                                  style={{ backgroundColor: p2Sub.color }}
+                                >
+                                  {p2Sub.nameEn.slice(0, 2)}
+                                </div>
+                                <div>
+                                  <span className="font-mono text-xs font-bold text-slate-800 block leading-tight">{p2Sub.nameEn}</span>
+                                  <span className="text-[10px] text-slate-500 block leading-none">{p2Sub.nameJa}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <p className="text-[10px] text-emerald-700/80 mt-1 leading-relaxed border-t border-emerald-100 pt-1.5 font-mono">
+                          {reaction.description}
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    // Multiple possible reactions (Branches!)
+                    return (
+                      <div className="flex flex-col gap-3 p-3 bg-teal-50/80 border border-teal-200 rounded-lg shadow-sm">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-mono uppercase tracking-wider text-teal-600 font-bold">
+                            合成結果 (分岐反応)
+                          </span>
+                          <span className="text-[10px] bg-teal-500 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono animate-pulse">
+                            🎲 ランダム分岐
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-teal-800/90 leading-snug font-mono">
+                          この組み合わせは、確率で異なる生成物を生み出します。空きスペースがあれば隣接セルにも配置されます：
+                        </p>
+                        
+                        <div className="flex flex-col gap-2">
+                          {matchingReactions.map((reaction, rIdx) => {
+                            const p1 = reaction.products[0];
+                            const p2 = reaction.products[1] || 'empty';
+                            const p1Sub = SUBSTANCES.find(s => s.id === p1);
+                            const p2Sub = p2 !== 'empty' ? SUBSTANCES.find(s => s.id === p2) : null;
+                            
+                            return (
+                              <div key={reaction.id} className="bg-white/95 p-2 rounded-md border border-teal-100 shadow-xs flex flex-col gap-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[9px] bg-teal-100 text-teal-800 px-1.5 py-0.5 rounded font-bold font-mono">
+                                    分岐ルート {rIdx + 1}
+                                  </span>
+                                </div>
+                                
+                                <div className="flex gap-2">
+                                  {p1Sub && (
+                                    <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded border border-slate-100 shadow-xs">
+                                      <div 
+                                        className="w-5 h-5 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-[10px] text-white"
+                                        style={{ backgroundColor: p1Sub.color }}
+                                      >
+                                        {p1Sub.nameEn.slice(0, 2)}
+                                      </div>
+                                      <div className="leading-none">
+                                        <span className="font-mono text-[10px] font-bold text-slate-800 block">{p1Sub.nameEn}</span>
+                                        <span className="text-[8px] text-slate-500 block">{p1Sub.nameJa}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  {p2Sub && (
+                                    <div className="flex items-center gap-1.5 bg-slate-50 p-1 rounded border border-slate-100 shadow-xs">
+                                      <div 
+                                        className="w-5 h-5 rounded border border-slate-200 flex items-center justify-center font-mono font-bold shrink-0 text-[10px] text-white"
+                                        style={{ backgroundColor: p2Sub.color }}
+                                      >
+                                        {p2Sub.nameEn.slice(0, 2)}
+                                      </div>
+                                      <div className="leading-none">
+                                        <span className="font-mono text-[10px] font-bold text-slate-800 block">{p2Sub.nameEn}</span>
+                                        <span className="text-[8px] text-slate-500 block">{p2Sub.nameJa}</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-[9px] text-slate-500 leading-tight font-mono border-t border-slate-100 pt-1">
+                                  {reaction.description}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                } else {
+                  return (
+                    <div className="flex flex-col gap-1.5 p-3.5 bg-rose-50 border border-rose-200 rounded-lg shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-rose-500 font-bold">
+                          合成結果
+                        </span>
+                        <span className="text-[10px] bg-rose-500 text-white font-bold px-2 py-0.5 rounded-full uppercase tracking-wider font-mono">
+                          ❌ 合成不可
+                        </span>
+                      </div>
+                      <div className="font-mono font-bold text-rose-600 text-xs tracking-wide py-0.5">
+                        置き換えなし (不反応)
+                      </div>
+                      <p className="text-[10px] text-rose-500 leading-relaxed font-mono">
+                        この2つの物質を組み合わせても反応は発生しません。不反応のため、元のピクセル is_unreactive ピクセルはそのまま保護されます。
+                      </p>
+                    </div>
+                  );
+                }
+              })()}
+            </div>
+          )}
 
             {/* 1. INSPECTOR TAB */}
             {!draggedCell && activeTab === 'inspector' && currentInspectedSubstance && (
@@ -3455,8 +4544,6 @@ export default function App() {
                 </div>
               </div>
             )}
-
-          </div>
 
           {/* PROGRESS METRICS BAR */}
           <div className="bg-slate-100 border border-slate-200 rounded-xl p-4 shrink-0 flex flex-col gap-2 font-mono text-xs text-slate-500" id="progress_card">

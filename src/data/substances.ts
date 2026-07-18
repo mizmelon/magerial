@@ -1527,3 +1527,11 @@ export function getReaction(typeA: string, typeB: string): Reaction | undefined 
     return rA === first && rB === second;
   });
 }
+
+export function getReactions(typeA: string, typeB: string): Reaction[] {
+  const [first, second] = [typeA, typeB].sort();
+  return REACTIONS.filter(r => {
+    const [rA, rB] = [r.a, r.b].sort();
+    return rA === first && rB === second;
+  });
+}
